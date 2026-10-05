@@ -38,7 +38,10 @@ ap.add_argument("--iters", type=int, default=5)
 ap.add_argument("--sigma", type=float, default=0.5)
 ap.add_argument("--guide_gain", type=float, default=300.0, help="N/m, contact spring at the first iteration")
 ap.add_argument("--squeeze", type=float, default=0.02, help="m; contact targets moved this far into the body")
-ap.add_argument("--max_retries", type=int, default=3)
+ap.add_argument("--max_retries", type=int, default=3, help="backtracks per frame")
+ap.add_argument("--max_total_retries", type=int, default=12,
+                help="backtracks per episode: once an object is lost for good, every later frame used to "
+                     "spend 3 retries on it (70 min on task 06 ep0, 256 samples)")
 ap.add_argument("--drop_jump", type=float, default=0.025, help="m; error increase per commit counted as a drop")
 ap.add_argument("--backtrack", type=int, default=2)
 ap.add_argument("--settle", type=int, default=40)
@@ -201,7 +204,7 @@ def main():
             dropped = [o for o in active if e_now[o] > 0.04 and e_now[o] - e_prev[o] > args.drop_jump]
             back = max(len(history) - args.backtrack, 0)
             key = history[back][0]["frame"]
-            if dropped and retries.get(key, 0) < args.max_retries:
+            if dropped and retries.get(key, 0) < args.max_retries and sum(retries.values()) < args.max_total_retries:
                 retries[key] = retries.get(key, 0) + 1
                 level = retries[key]
                 snap, n_keep, nominal, tstate = history[back]
