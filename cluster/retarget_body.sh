@@ -1,4 +1,6 @@
-# One episode, every target robot: stage 1 once, then stage 2 -> 3 -> 4 per target.
+# One episode, every target robot: stage 1 once, then per target
+#   2 kinematic retarget -> 3 SPIDER plan -> 4 open-loop re-execution recorded as a Bench2Dex
+#   origin episode -> 5 (if 4 succeeded) RGB + tactile render and GT labels, as the released data.
 # Sourced by retarget_array.sbatch with TASK and EPISODE set; no #SBATCH here.
 #
 # Idempotent: each stage skips when its output exists, so a resubmitted or walltime-killed item
@@ -7,14 +9,16 @@
 #   TARGETS       space-separated robots (default: every robot but the episode's source)
 #   PACK          targets optimised at the same time on this GPU (default 2)
 #   SPIDER_ARGS   extra stage-3 arguments, e.g. "--num_samples 1024 --iters 5"
-#   EXPORT_ARGS   extra stage-4 arguments (default --only_success)
+#   RECORD_ARGS   extra stage-4 arguments, e.g. --keep_failed
+#   RENDER=0      skip stage 5 (record only)
 
 set +e        # failures are handled per stage; one target failing must not kill the others
 RUN="$WS/b2dr_runs"
 ALL_ROBOTS="rh56dfx rh5dg2 shadow schunk wuji"
 PACK="${PACK:-2}"
 SPIDER_ARGS="${SPIDER_ARGS:-}"
-EXPORT_ARGS="${EXPORT_ARGS:---only_success}"
+RECORD_ARGS="${RECORD_ARGS:-}"
+RENDER="${RENDER:-1}"
 cd "$REPO_DIR"
 
 stage() {   # stage LOG TIMEOUT_S script args...
@@ -47,7 +51,14 @@ one_target() {
   stage "$log" 64800 scripts/stage3_spider.py --task "$TASK" --episode "$EPISODE" --target "$tgt" $SPIDER_ARGS || return 1
   echo "--- $tgt: stage 4 $(date +%T)" >> "$log"
   # shellcheck disable=SC2086
-  "${ISAAC[@]}" "$PY" scripts/stage4_export.py --task "$TASK" --episode "$EPISODE" --target "$tgt" $EXPORT_ARGS >> "$log" 2>&1
+  stage "$log" 3600 scripts/stage4_record.py --task "$TASK" --episode "$EPISODE" --target "$tgt" $RECORD_ARGS || return 1
+  local rec="$HOST_EPDIR/$tgt/spider_record.json"
+  if [ "$RENDER" = "1" ] && grep -q '"success": true' "$rec"; then
+    local h5; h5="$(grep -o '"episode_hdf5": "[^"]*"' "$rec" | cut -d'"' -f4)"
+    echo "--- $tgt: stage 5 $(date +%T) $h5" >> "$log"
+    timeout --kill-after=60 7200 "${ISAAC[@]}" bash -c \
+      "PY=$PY bash scripts/stage5_render.sh $(dirname "$h5") $(basename "$h5")" >> "$log" 2>&1 || return 1
+  fi
 }
 
 pids=() rc=0
@@ -61,9 +72,9 @@ for p in "${pids[@]}"; do wait "$p" || rc=1; done
 
 echo "=== $TASK ep$EPISODE summary $(date +%T) ==="
 for tgt in $TARGETS; do
-  f="$HOST_EPDIR/$tgt/spider.json"
+  f="$HOST_EPDIR/$tgt/spider_record.json"
   if [ -f "$f" ]; then
-    printf '  %-8s %s\n' "$tgt" "$(grep -o '"task_success": [a-z]*' "$f") $(grep -o '"minutes": [0-9.]*' "$f")"
+    printf '  %-8s %s\n' "$tgt" "$(grep -o '"success": [a-z]*' "$f") $(grep -o '"max": [0-9.]*' "$f") (drift cm)"
   else
     printf '  %-8s %s\n' "$tgt" "no result (see $HOST_EPDIR/$tgt/run.log)"
   fi

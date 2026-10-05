@@ -195,6 +195,24 @@ class SpiderEnv(B2DEnv):
         q = torch.max(torch.min(q, self.q_hi), self.q_lo)
         self.q_target = cfg.action_ema * q_prev + (1.0 - cfg.action_ema) * q
 
+    def commit_step(self, action=None, after_physics_step=None):
+        """One control step of the committed rollout, like DirectRLEnv.step but with a hook after
+        every physics step (Bench2Dex updates its metrics there). ``action=None`` holds the current
+        joint targets (settle). Returns env 0's executed joint target."""
+        if action is not None:
+            self._pre_physics_step(action[None].expand(self.num_envs, -1))
+        cmd = self.q_target[0].detach().cpu().numpy().copy()
+        for _ in range(self.cfg.decimation):
+            self._apply_action()
+            self.scene.write_data_to_sim()
+            self.sim.step(render=False)
+            self.scene.update(dt=self.physics_dt)
+            if after_physics_step is not None:
+                after_physics_step()
+        if action is not None:
+            self.frame += 1
+        return cmd
+
     def _apply_action(self):
         super()._apply_action()                       # joint targets + gravity compensation hooks
         if self.hold:
@@ -305,23 +323,6 @@ class SpiderEnv(B2DEnv):
         self.scene.write_data_to_sim()
         self.sim.forward()
         self.scene.update(dt=0.0)
-
-    # ------------------------------------------------------------ success
-    def success_states(self, i=0):
-        """Object states of env i in the format Bench2Dex's success evaluators read."""
-        roots, vel = self.object_roots()
-        r, v = roots[i].cpu().numpy(), vel[i].cpu().numpy()
-        out = {}
-        for j, k in enumerate(self.obj_ids):
-            st = {"pose_world": np.array([*r[j, :3], *r[j, 4:7], r[j, 3]], np.float32),
-                  "lin_vel_world": v[j, :3], "ang_vel_world": v[j, 3:]}
-            a = self.objects[k]
-            if isinstance(a, Articulation):
-                st["joint_names"] = list(a.joint_names)
-                st["qpos"] = a.data.joint_pos[i].cpu().numpy()
-                st["qvel"] = a.data.joint_vel[i].cpu().numpy()
-            out[k] = st
-        return out
 
 
 class SuccessTracker:

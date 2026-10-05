@@ -231,6 +231,23 @@ class B2DEnv(DirectRLEnv):
         self.sim.forward()
         self.scene.update(dt=0.0)
 
+    # ---------------------------------------------------------- success
+    def success_states(self, i=0):
+        """Object states of env i in the format Bench2Dex's success evaluators read."""
+        roots, vel = self.object_roots()
+        r, v = roots[i].cpu().numpy(), vel[i].cpu().numpy()
+        out = {}
+        for j, k in enumerate(self.obj_ids):
+            st = {"pose_world": np.array([*r[j, :3], *r[j, 4:7], r[j, 3]], np.float32),
+                  "lin_vel_world": v[j, :3], "ang_vel_world": v[j, 3:]}
+            a = self.objects[k]
+            if isinstance(a, Articulation):
+                st["joint_names"] = list(a.joint_names)
+                st["qpos"] = a.data.joint_pos[i].cpu().numpy()
+                st["qvel"] = a.data.joint_vel[i].cpu().numpy()
+            out[k] = st
+        return out
+
     # --------------------------------------------------------- env plumbing
     def _pre_physics_step(self, actions):
         pass

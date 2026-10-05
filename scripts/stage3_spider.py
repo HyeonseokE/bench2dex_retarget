@@ -13,7 +13,13 @@ so the target robot reproduces the demo object motion under Bench2Dex physics.
   * Backtracking: when a manipulated object jumps away from its reference, roll back `backtrack`
     commits and re-plan with more effort, up to `max_retries` times per frame.
   * After the demo the last command is held for `settle` frames, as a Bench2Dex rollout keeps
-    simulating; the episode is judged with Bench2Dex's own success conditions and dwell rule.
+    simulating.
+  * Output is the PLAN, not a dataset: the reset state and the joint target executed at every
+    control step (``cmd``), plus the optimised rollout for diagnostics. Stage 4 re-executes the
+    plan open-loop in one env and records it the Bench2Dex way; the optimised rollout itself went
+    through a snapshot restore every commit and is not a continuous execution.
+  * Success reported here is the scene's success_conditions with the dwell rule, a progress
+    signal; the official verdict is MetricTracker's, on the stage-4 re-execution.
 
   python scripts/stage3_spider.py --task 06 --episode 0 --target shadow --headless
 """
@@ -49,6 +55,7 @@ ap.add_argument("--env_cfg", default="", help="JSON overrides of SpiderEnvCfg fi
 ap.add_argument("--no_hold_pass", action="store_true")
 ap.add_argument("--max_frames", type=int, default=0, help="debug: stop the episode early (result not saved as final)")
 ap.add_argument("--tag", default="spider", help="output name: <tag>.json / <tag>_rollout.npz")
+ap.add_argument("--seed", type=int, default=0, help="MPPI sampling seed (recorded in the result)")
 AppLauncher.add_app_launcher_args(ap)
 args = ap.parse_args()
 app = AppLauncher(args).app
@@ -142,27 +149,33 @@ def main():
     T, dev, A = env.T, env.device, env.n_act
     if not args.no_hold_pass:
         hold_pass(env)
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
     env.reset()
     tracker = SuccessTracker(env.scene_def, env.step_dt)
     H, knot, S = args.horizon, args.knot, args.commit
     K = H // knot + 1
     nominal = torch.zeros(K, A, device=dev)
     sigma = torch.full((A,), args.sigma, device=dev)
-    rec = {"q": [], "q_target": [], "act": [], "obj": [], "art": [], "err": []}
+    rec = {"q": [], "q_target": [], "obj": [], "art": [], "err": []}
     t0, n_opt = time.time(), 0
     history, retries, level, level_until = [], {}, 0, 0
     body_obj = env.body_obj.cpu().numpy()
 
-    def record(a):
+    def record(cmd):
         roots, _ = env.object_roots()
         rec["q"].append(env.robot.data.joint_pos[0].cpu().numpy())
-        rec["q_target"].append(env.q_target[0].cpu().numpy())
-        rec["act"].append(a)
+        rec["q_target"].append(cmd)
         rec["obj"].append(roots[0].cpu().numpy())
         rec["art"].append({k: v[0].cpu().numpy() for k, v in env.object_qpos().items()})
         rec["err"].append(obj_err(env).cpu().numpy())
         tracker.update(env.success_states(0))
 
+    def commit_step(a):
+        record(env.commit_step(a))
+
+    init = env.snapshot()                            # the state stage 4 starts the re-execution from
+    record(env.q_target[0].cpu().numpy())            # frame 0: the reset state
     while int(env.frame[0]) < T - 3:
         f = int(env.frame[0])
         history.append((env.snapshot(), len(rec["err"]), nominal.clone(), tracker.state()))
@@ -193,8 +206,7 @@ def main():
         else:
             commit = torch.zeros(min(S, max(h, 1)), A, device=dev)
         for k in range(commit.shape[0]):
-            env.step(commit[k][None].expand(env.num_envs, -1))
-            record(commit[k].cpu().numpy())
+            commit_step(commit[k])
         # backtracking: a manipulated object jumped away from its reference
         fa = min(int(env.frame[0]), T - 1)
         active = {int(body_obj[a]) for a in env.active[max(0, fa - 5):fa + 1].ravel() if a >= 0}
@@ -228,31 +240,35 @@ def main():
     # settle: hold the last command, no residual, no guidance
     env.guide_gain = 0.0
     for _ in range(args.settle):
-        for _ in range(env.cfg.decimation):
-            env._apply_action()
-            env.scene.write_data_to_sim()
-            env.sim.step(render=False)
-            env.scene.update(dt=env.physics_dt)
-        record(np.zeros(A, np.float32))
+        commit_step(None)
 
     stable = tracker.stable_frame()
     er = np.array(rec["err"])
     res = {"task": env.meta["task"], "episode": args.episode, "source": env.meta["source"], "target": args.target,
-           "policy": "spider", "frames": len(er), "task_success": stable is not None, "stable_success_frame": stable,
-           "instant_success_frames": int(sum(tracker.history)), "settle_frames": args.settle,
+           "policy": "spider", "frames": len(er), "settle_frames": args.settle, "seed": args.seed,
+           "scene_success": stable is not None, "scene_stable_success_frame": stable,
+           "instant_success_frames": int(sum(tracker.history)),
            "minutes": round((time.time() - t0) / 60, 1), "optimised_steps": n_opt,
            "retries": {str(k): v for k, v in retries.items()}, "args": vars(args), "env_cfg": overrides,
            "obj_err_mean_cm": dict(zip(env.obj_ids, (100 * er.mean(0)).round(2).tolist())),
            "obj_err_final_cm": dict(zip(env.obj_ids, (100 * er[-1]).round(2).tolist()))}
+    res["task_success"] = res["scene_success"]
     out_dir.mkdir(parents=True, exist_ok=True)
     art = {f"art/{k}": np.array([a[k] for a in rec["art"]]) for k in env.art_ids}
-    np.savez_compressed(out_dir / f"{args.tag}_rollout.npz", q=np.array(rec["q"]), q_target=np.array(rec["q_target"]),
-                        act=np.array(rec["act"]), obj=np.array(rec["obj"]), err=er,
-                        success=np.array(tracker.history), joint_names=np.array(env.joint_names),
-                        obj_ids=np.array(env.obj_ids), result=np.array(json.dumps(res)), **art)
+    init_np = {"init/q": init["q"].cpu().numpy(), "init/q_target": init["q_target"].cpu().numpy()}
+    for k, d in init["obj"].items():
+        init_np[f"init/obj/{k}/pose"] = d["pose"].cpu().numpy()
+        if "jp" in d:
+            init_np[f"init/obj/{k}/jp"] = d["jp"].cpu().numpy()
+            init_np[f"init/obj/{k}/jt"] = d["jt"].cpu().numpy()
+    # cmd[t] is the joint target executed from frame t to t+1 (frame 0 = reset state)
+    np.savez_compressed(out_dir / f"{args.tag}_rollout.npz", q=np.array(rec["q"]), cmd=np.array(rec["q_target"][1:]),
+                        obj=np.array(rec["obj"]), err=er, success=np.array(tracker.history),
+                        joint_names=np.array(env.joint_names), obj_ids=np.array(env.obj_ids),
+                        result=np.array(json.dumps(res)), **art, **init_np)
     json.dump(res, open(res_path, "w"), indent=1)
     print(f"RESULT stage3 {res['task']} ep{args.episode} {res['source']}->{args.target}: "
-          f"{'SUCCESS' if res['task_success'] else 'fail'} ({res['minutes']} min)", flush=True)
+          f"{'SUCCESS' if res['task_success'] else 'fail'} (scene conditions, {res['minutes']} min)", flush=True)
     env.close()
 
 

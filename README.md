@@ -17,14 +17,19 @@ Bench2Dex teleop 데모를 **소스 손에서 나머지 UR5 손 4종으로** 옮
 
 ## 파이프라인 — 에피소드 하나, 목표 로봇 하나
 
-| stage | 스크립트 | 무엇 | 출력 (`b2dr_runs/<task>/epNNN/`) |
+| stage | 스크립트 | 무엇 | 출력 |
 |---|---|---|---|
-| 1 | `scripts/stage1_reference.py` | 소스 로봇으로 데모를 **운동학적으로 재생**(프레임별 상태 기록, 물리 스텝 없음): 물체 바디 pose, 소스 손끝·손목·플랜지, 손끝-표면 접촉(2 cm), 손별 조작 중인 바디 | `reference.npz/.json`, `meshes.npz` |
-| 2 | `scripts/stage2_kinematic.py` | 목표 로봇 전신 IK: 손끝 k → 소스 손끝 k(접촉 10, 비접촉 2), tool0 플랜지 약하게 유지, 이전 프레임 정칙화. 프레임 순서대로 warm-start | `<robot>/kinematic.npz` |
-| 3 | `scripts/stage3_spider.py` | hold pass(물체를 데모 궤적에 고정하고 PD 추종 → 관통 없는 reference) 후 SPIDER: 손목 6-DoF·손가락 residual, 가상 접촉 스프링(반복마다 0으로 감쇠), drop 시 backtracking, settle 40 프레임 | `<robot>/spider.json`, `spider_rollout.npz` |
-| 4 | `scripts/stage4_export.py` | 롤아웃을 목표 로봇의 Bench2Dex 에피소드 HDF5로 → `Bench2Dex/replay.py`로 RGB·tactile 렌더 가능 | `<robot>/episode_NNNNNN_<robot>.hdf5` |
+| 1 | `scripts/stage1_reference.py` | 소스 로봇으로 데모를 **운동학적으로 재생**: 물체 바디 pose, 소스 손끝·손목·플랜지, 손끝-표면 접촉(2 cm), 손별 조작 바디 | `b2dr_runs/<task>/epNNN/reference.npz/.json` |
+| 2 | `scripts/stage2_kinematic.py` | 목표 로봇 전신 IK (손끝 k → 소스 손끝 k), 프레임 순서대로 warm-start | `…/<robot>/kinematic.npz` |
+| 3 | `scripts/stage3_spider.py` | hold pass 후 SPIDER 최적화. **계획만 저장**: 초기 상태 + 매 스텝 실행할 관절 목표(`cmd`) | `…/<robot>/spider.json`, `spider_rollout.npz` |
+| 4 | `scripts/stage4_record.py` | 새 단일 env에서 계획을 **처음부터 끊김 없이 재실행**하며 Bench2Dex DataCollector와 똑같이 기록 (state reader, Convention A 액션, box3d, MetricTracker 매 물리 스텝, HDF5EpisodeWriter). 판정 = MetricTracker stable success | `b2dr_runs/dataset/<robot>/<scene>/origin-generalization/episode_NNNNNN.hdf5` (성공만) |
+| 5 | `scripts/stage5_render.sh` | Bench2Dex `replay.py --restore-generalization --enable-rgb --enable-tactile` (공개 replay 데이터와 같은 `restored` 모드) + GT 라벨(occupancy, box3d/box2d) | `…/replay-generalization/episode_NNNNNN.hdf5` |
 
-로컬(dev 박스)에서 한 에피소드: `bash scripts/run_episode.sh 06 0 shadow [--num_samples 1024 ...]`
+stage 4·5의 출력은 HF `Bench2Dex/teleopdata`와 같은 트리·형식이다(`<scene>/origin-generalization`, `<scene>/replay-generalization`).
+LeRobot v3가 필요하면 Bench2Dex의 `tools/export/convert_bench2dex_to_lerobot_v3.py`를 그대로 쓴다(ffmpeg, pyarrow 필요).
+형식 비교: `python scripts/verify_format.py <생성 파일> <공개 파일>`.
+
+로컬(dev 박스)에서 한 에피소드(stage 1–4): `bash scripts/run_episode.sh 06 0 shadow [--num_samples 1024 ...]`
 
 ### 설계상 결정
 
@@ -72,4 +77,8 @@ retarget한다. GPU 한 장에 `PACK`(기본 2)개를 동시에 돌리고, `%MAX
   (프레임 ~300에서 사과를 놓쳤고, 475에서 시간 제한에 걸림). 프로토타입은 같은 에피소드를 1024 샘플로 성공했다.
   기본값(1024)으로 다시 비교해야 한다.
 - 이 실행에서 backtracking이 놓친 물체에 프레임마다 재시도를 쓰는 문제가 드러나서 에피소드당 상한(`--max_total_retries 12`)을 넣었다.
+- **포맷 e2e** (06 ep0 → Shadow, 짧은 디버그 계획): stage 4 기록 → stage 5 렌더(카메라 6대 JPEG 480×640, TacMap 10 패드,
+  occupancy·box 라벨) → Bench2Dex 변환기로 LeRobot v3 생성까지 통과. 공개 replay 파일과 구조 비교 시 남는 차이는
+  (a) 손별 tactile 패드 이름(Bench2Dex가 로봇마다 다르게 정의), (b) 지표 스키마 버전(공개 데이터는 이전 Bench2Dex 코드로
+  수집, 여기는 고정 커밋 fd90dcc의 MetricTracker)뿐이다. 복원된 씬(배경·텍스처·조명·카메라·distractor)은 공개 RGB와 같은 장면이다.
 - 클러스터에서는 아직 한 번도 돌리지 않았다.

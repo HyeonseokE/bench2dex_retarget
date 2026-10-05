@@ -13,4 +13,4 @@ cd "$(dirname "$0")/.."
 python scripts/stage1_reference.py --task "$TASK" --episode "$EP" --headless
 python scripts/stage2_kinematic.py --task "$TASK" --episode "$EP" --target "$TGT" --headless
 python scripts/stage3_spider.py --task "$TASK" --episode "$EP" --target "$TGT" --headless "$@"
-python scripts/stage4_export.py --task "$TASK" --episode "$EP" --target "$TGT"
+python scripts/stage4_record.py --task "$TASK" --episode "$EP" --target "$TGT" --headless
