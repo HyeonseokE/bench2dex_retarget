@@ -14,6 +14,7 @@ The result is cached per robot in $B2DR_RUNS/coupling/<robot>.json.
 from __future__ import annotations
 
 import json
+import os
 import re
 
 import h5py
@@ -94,7 +95,9 @@ def fit(spec: robots.RobotSpec, joint_names: list[str], hand_joints: dict, actua
                             "r": mirror["r"], "mirrored_from": mj}
     out = {"robot": spec.name, "fitted_on": [str(f) for f in files], "rules": rules}
     cache.parent.mkdir(parents=True, exist_ok=True)
-    json.dump(out, open(cache, "w"), indent=1)
+    tmp = cache.with_suffix(f".{os.getpid()}.tmp")      # array tasks fit the same robot concurrently
+    json.dump(out, open(tmp, "w"), indent=1)
+    os.replace(tmp, cache)
     return out
 
 

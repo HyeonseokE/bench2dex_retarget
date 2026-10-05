@@ -14,6 +14,15 @@ import numpy as np
 import torch
 
 CONTACT_DIST = 0.02
+# A fingertip cannot be more than a few cm inside a body. Deeper "inside" readings come from the
+# inside test failing on open meshes (articulated appliances: every tip read as touching the
+# microwave, task 44), so they are treated as far away, not as contact.
+MAX_DEPTH = 0.05
+
+
+def effective_distance(d):
+    """Signed distance -> distance used for contact and proximity: |d|, with deep 'inside' = far."""
+    return torch.where(d < -MAX_DEPTH, torch.full_like(d, float("inf")), d.abs())
 
 
 def body_meshes(stage, body_prim_paths: list[str]) -> list[tuple[np.ndarray, np.ndarray] | None]:

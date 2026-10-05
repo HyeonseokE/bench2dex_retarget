@@ -104,6 +104,7 @@ def main():
         loc = quat_apply(quat_conjugate(qb).repeat_interleave(10, 0), rel)
         d, cpt = geometry.signed_distance(loc, V, Fc)
         dist[:, :, bi], local[:, :, bi] = d.reshape(T, 10), cpt.reshape(T, 10, 3)
+    dist = geometry.effective_distance(dist)
     dmin, nearest = dist.min(-1)
     contact_body = torch.where(dmin < geometry.CONTACT_DIST, nearest, torch.full_like(nearest, -1))
     contact_local = torch.take_along_dim(local, nearest[..., None, None].expand(-1, -1, 1, 3), 2)[:, :, 0]
