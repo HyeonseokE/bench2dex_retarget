@@ -6,7 +6,7 @@
               attempt a: --seed a, --num_samples 1024 * (1 + a // 2), --iters 5 + a
             up to --max_attempts. An episode that never succeeds is reported, not uploaded.
   stage 5   render the successful episode like the released replay data (RGB x6, TacMap, labels)
-  upload    one commit to <ns>/b2d-<scene>-<target>-retargeting (scripts/upload_hf.py)
+  upload    one commit to <ns>/b2d-<scene>-<target>-retargeting (tools/retarget/upload_hf.py)
 
 Every step skips what is already on disk, so a resubmitted job resumes where it stopped. Each Isaac
 stage runs in its own process (an Isaac Lab scene cannot be rebuilt in one process); the interpreter
@@ -14,7 +14,7 @@ is $PY (the cluster's /isaac-sim/python.sh) or this one.
 
   status: $B2DR_RUNS/<scene>/epNNN/<target>/status.json
 
-  python scripts/run_target.py --task 06 --episode 0 --target shadow [--max_attempts 5] [--no_upload]
+  python tools/retarget/run_target.py --task 06 --episode 0 --target shadow [--max_attempts 5] [--no_upload]
 """
 
 import argparse
@@ -26,8 +26,8 @@ import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent))
-from b2dr import paths  # noqa: E402
+sys.path.insert(0, str(HERE.parents[1]))  # Bench2Dex root
+from retarget import paths  # noqa: E402
 
 PY = os.environ.get("PY", sys.executable)
 

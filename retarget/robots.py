@@ -14,7 +14,7 @@ does not spell out in one place:
   wrist     the hand base body (teleop wrist_link_name); the SPIDER wrist residual acts on it.
   flange    tool0, softly kept at the source flange pose during kinematic retargeting.
   actuated  hand joints teleop drives. The rest either follow a mimic constraint in the USD or
-            are locked (Shadow THJ3/LFJ5); b2dr.coupling models them for IK.
+            are locked (Shadow THJ3/LFJ5); retarget.coupling models them for IK.
 """
 
 from __future__ import annotations

@@ -11,7 +11,7 @@ same USD the benchmark simulates -- no URDF (Schunk's does not load, RH5DG2's la
   contact_local  (T,10,3) closest surface point, in that body's frame
   active         (T,2)    body each hand manipulates: moving, and within 3 cm of the hand
 
-  python scripts/stage1_reference.py --task 06 --episode 0 --headless
+  python tools/retarget/stage1_reference.py --task 06 --episode 0 --headless
 """
 
 import argparse
@@ -32,10 +32,10 @@ app = AppLauncher(args).app
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from b2dr import geometry, paths, robots  # noqa: E402
-from b2dr.sim_env import B2DEnv, B2DEnvCfg  # noqa: E402
-from b2dr.task import load_episode  # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))  # Bench2Dex root
+from retarget import geometry, paths, robots  # noqa: E402
+from retarget.sim_env import B2DEnv, B2DEnvCfg  # noqa: E402
+from retarget.task import load_episode  # noqa: E402
 from isaaclab.utils.math import quat_apply, quat_conjugate  # noqa: E402
 
 NEAR_DIST = 0.03     # a hand manipulates a moving body whose surface is this close to one of its tips

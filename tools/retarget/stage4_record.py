@@ -1,14 +1,14 @@
 """Stage 4: write the committed SPIDER execution as a Bench2Dex episode (state record, no re-simulation).
 
 Reads the state trace stage 3 kept of env 0 (every physics step) and writes it with Bench2Dex's own
-collector pieces (b2dr.recorder.write_episode): Convention-A actions, box3d labels, MetricTracker on
+collector pieces (retarget.recorder.write_episode): Convention-A actions, box3d labels, MetricTracker on
 every physics-step state, HDF5EpisodeWriter. The verdict is MetricTracker's stable success, the
 benchmark's official one. Pure Python (no Isaac): Bench2Dex's metric and writer code only.
 
   out: $B2DR_RUNS/dataset/<robot>/<scene>/origin-generalization/episode_<ep>.hdf5   (success)
        $B2DR_RUNS/dataset_failed/...                                                  (--keep_failed)
 
-  python scripts/stage4_record.py --task 06 --episode 0 --target shadow
+  python tools/retarget/stage4_record.py --task 06 --episode 0 --target shadow
 """
 
 import argparse
@@ -16,8 +16,8 @@ import json
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from b2dr import paths, recorder  # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))  # Bench2Dex root
+from retarget import paths, recorder  # noqa: E402
 
 
 def main():

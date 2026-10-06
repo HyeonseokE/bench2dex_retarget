@@ -15,14 +15,14 @@ so the target robot reproduces the demo object motion under Bench2Dex physics.
   * After the demo the last command is held for `settle` frames, as a Bench2Dex rollout keeps
     simulating.
   * The committed execution (env 0) is kept as a state trace: the state after every physics step
-    and the joint target executed at every control step (b2dr.recorder.capture), truncated with
+    and the joint target executed at every control step (retarget.recorder.capture), truncated with
     the rollout on backtracking. Samples are never recorded. Stage 4 writes the trace as a
     Bench2Dex episode; re-executing the joint targets open-loop does NOT reproduce the run (every
     commit starts from a restored snapshot), so the states are the record.
   * Success reported here is the scene's success_conditions with the dwell rule, a progress
     signal; the official verdict is MetricTracker's, computed by stage 4 on the trace.
 
-  python scripts/stage3_spider.py --task 06 --episode 0 --target shadow --headless
+  python tools/retarget/stage3_spider.py --task 06 --episode 0 --target shadow --headless
 """
 
 import argparse
@@ -64,9 +64,9 @@ app = AppLauncher(args).app
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from b2dr import paths, recorder  # noqa: E402
-from b2dr.spider_env import SpiderEnv, SuccessTracker, make_cfg  # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))  # Bench2Dex root
+from retarget import paths, recorder  # noqa: E402
+from retarget.spider_env import SpiderEnv, SuccessTracker, make_cfg  # noqa: E402
 
 ART_W = 10.0      # cost per rad (or m) of articulation joint error, same weight as object position
 

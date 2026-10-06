@@ -11,7 +11,7 @@ transient Hub errors (rate limit, concurrent-commit conflict, 5xx) are retried w
 
   HF_TOKEN (or ~/.hf_token), HF_NAMESPACE (default: the token's user), HF_STAGES (default "origin replay")
 
-  python scripts/upload_hf.py --task 06 --episode 0 --target shadow
+  python tools/retarget/upload_hf.py --task 06 --episode 0 --target shadow
 """
 
 import argparse
@@ -21,8 +21,8 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from b2dr import paths  # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))  # Bench2Dex root
+from retarget import paths  # noqa: E402
 
 STAGES = {"origin": "origin-generalization", "replay": "replay-generalization"}
 

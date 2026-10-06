@@ -11,10 +11,10 @@ from: the target robot's own USD in the simulator, not a URDF.
   * FK and Jacobians are read from PhysX after a zero-gravity step on the commanded joints, so
     the Jacobian always belongs to the configuration it is used at.
   * Variables are the arm joints and the hand joints teleop actuates; the others follow the
-    coupling fitted on the hand's own demos (b2dr.coupling), so the IK only plans finger shapes
+    coupling fitted on the hand's own demos (retarget.coupling), so the IK only plans finger shapes
     the hand can take.
 
-  python scripts/stage2_kinematic.py --task 06 --episode 0 --target shadow --headless
+  python tools/retarget/stage2_kinematic.py --task 06 --episode 0 --target shadow --headless
 """
 
 import argparse
@@ -38,9 +38,9 @@ app = AppLauncher(args).app
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from b2dr import coupling, paths, robots  # noqa: E402
-from b2dr.sim_env import B2DEnv, B2DEnvCfg  # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))  # Bench2Dex root
+from retarget import coupling, paths, robots  # noqa: E402
+from retarget.sim_env import B2DEnv, B2DEnvCfg  # noqa: E402
 from isaaclab.utils.math import axis_angle_from_quat, quat_conjugate, quat_mul  # noqa: E402
 
 W_TIP_CONTACT = 10.0

@@ -12,7 +12,7 @@
 #   L4  isaaclab    Isaac Lab + GPU PhysX with 1024 cloned envs (SPIDER's sample count)
 #   L4c camera      one RGB frame rendered and saved as PNG
 #   L5  bench2dex   Bench2Dex's own main.py, task 06, headless, 300 steps
-#   L6  stage1      b2dr reference of 06 ep0 (source RH56DFX replayed kinematically)
+#   L6  stage1      retarget reference of 06 ep0 (source RH56DFX replayed kinematically)
 #   L7  stage2      kinematic retarget 06 ep0 -> Shadow
 #   L8  stage3      SPIDER, deliberately tiny (64 samples, 1 iteration, 60 frames) -- plumbing, not success
 #   L9  stage4      Bench2Dex record of that run (kept even though it fails)
@@ -69,16 +69,16 @@ else
   LG clone "$REPO_URL" "$B"
 fi
 # shellcheck source=/dev/null
-source "$B/ondemand/cluster/env.sh"
+source "$B/ondemand/env.sh"
 echo "Bench2Dex fork @ $(GIT -C "$REPO_DIR" rev-parse --short HEAD)"
 
 echo "=== setup ==="
 # shellcheck source=/dev/null
-source "$CODE_DIR/cluster/setup.sh"
+source "$CODE_DIR/setup.sh"
 
 echo "=== fetch (task 06, episode 0, all assets) ==="
 export APPTAINERENV_TASKS="06" APPTAINERENV_EPISODES="1"
-"${ISAAC[@]}" "$PY" cluster/fetch_data.py
+"${ISAAC[@]}" "$PY" ondemand/fetch_data.py
 
 # ------------------------------------------------------------------ checks
 RUNS="$WS/b2dr_runs_envcheck"
@@ -101,7 +101,7 @@ run_check() {   # run_check NAME MARKER TIMEOUT_S cmd...
   echo "--- $name: ${RES[$name]} in ${INFO[$name]}"
   grep -E "^RESULT|^\[L[0-9]|^L[0-9]|Traceback|Error:|FATAL|Episode step limit|rt_ratio" "$log" | tail -8 | sed 's/^/  /' || true
 }
-CK=/workspace/Bench2Dex/ondemand/cluster/checks
+CK=/workspace/Bench2Dex/ondemand/checks
 EP0="$RUNS/06_fruit_bowl_loading/ep000"
 
 run_check L1 L1_OK 600 "${ISAAC[@]}" "$PY" $CK/l1_cuda.py
@@ -114,15 +114,15 @@ run_check L4 L4_OK 1500 "${ISAAC[@]}" "$PY" $CK/l4_camera.py --headless --num_en
 run_check L4c L4C_OK 1200 "${ISAAC[@]}" "$PY" $CK/l4_camera.py --headless --enable_cameras --num_envs 1 --png "$COUT/l4c_camera.png"
 run_check L5 "Episode step limit reached" 2400 "${ISAAC[@]}" bash -c \
   "cd /workspace/Bench2Dex && $PY main.py --task scenes/06_fruit_bowl_loading.yaml --episode-steps 300 --headless --profile"
-run_check L6 "RESULT stage1" 3600 "${ISAAC[@]}" "$PY" scripts/stage1_reference.py --task 06 --episode 0 --headless
-run_check L7 "RESULT stage2" 3600 "${ISAAC[@]}" "$PY" scripts/stage2_kinematic.py --task 06 --episode 0 --target shadow --headless
-run_check L8 "RESULT stage3" 3600 "${ISAAC[@]}" "$PY" scripts/stage3_spider.py --task 06 --episode 0 --target shadow \
+run_check L6 "RESULT stage1" 3600 "${ISAAC[@]}" "$PY" tools/retarget/stage1_reference.py --task 06 --episode 0 --headless
+run_check L7 "RESULT stage2" 3600 "${ISAAC[@]}" "$PY" tools/retarget/stage2_kinematic.py --task 06 --episode 0 --target shadow --headless
+run_check L8 "RESULT stage3" 3600 "${ISAAC[@]}" "$PY" tools/retarget/stage3_spider.py --task 06 --episode 0 --target shadow \
   --tag envcheck --num_samples 64 --iters 1 --max_frames 60 --headless
-run_check L9 "RESULT stage4" 1800 "${ISAAC[@]}" "$PY" scripts/stage4_record.py --task 06 --episode 0 --target shadow \
+run_check L9 "RESULT stage4" 1800 "${ISAAC[@]}" "$PY" tools/retarget/stage4_record.py --task 06 --episode 0 --target shadow \
   --tag envcheck --keep_failed
 H5="$(grep -o '"episode_hdf5": "[^"]*"' "$EP0/shadow/envcheck_record.json" 2>/dev/null | cut -d'"' -f4 || true)"
 run_check L10 "RESULT stage5" 5400 "${ISAAC[@]}" bash -c \
-  "PY=$PY bash scripts/stage5_render.sh \$(dirname '$H5') \$(basename '$H5')"
+  "PY=$PY bash tools/retarget/stage5_render.sh \$(dirname '$H5') \$(basename '$H5')"
 run_check L11 HF_OK 300 "${ISAAC[@]}" "$PY" -c '
 from huggingface_hub import HfApi
 w = HfApi().whoami(); fg = w.get("auth", {}).get("accessToken", {}).get("fineGrained") or {}

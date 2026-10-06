@@ -11,12 +11,12 @@
 #   4. fetch      teleop episodes + the assets of the selected tasks (skips what is already there)
 #   5. submit     one array task per (task, episode); each retargets that episode onto every
 #                 other robot until it succeeds, records + renders it like the released data and
-#                 pushes it to <ns>/b2d-<scene>-<robot>-retargeting (cluster/retarget_array.sbatch ->
-#                 cluster/retarget_body.sh -> scripts/run_target.py); then, after the array,
-#                 cluster/finalize.sbatch writes each repo's dataset card and failures.json
+#                 pushes it to <ns>/b2d-<scene>-<robot>-retargeting (ondemand/retarget_array.sbatch ->
+#                 ondemand/retarget_body.sh -> tools/retarget/run_target.py); then, after the array,
+#                 ondemand/finalize.sbatch writes each repo's dataset card and failures.json
 #
-# Everything after step 2 is read from the pulled checkout, so edits to b2dr/, scripts/ and
-# cluster/*.sh only need a push. Only an edit to THIS file needs re-pasting.
+# Everything after step 2 is read from the pulled fork, so edits to retarget/, tools/retarget/ and
+# ondemand/*.sh only need a push. Only an edit to THIS file needs re-pasting.
 #
 # Intended use: ONE TASK PER SUBMISSION, all 50 source episodes -- TASKS="06" (edit below). The four
 # target repos of that task then fill episode by episode (one Hub commit per episode). Resubmitting is
@@ -70,16 +70,16 @@ else
   LG clone "$REPO_URL" "$B"
 fi
 # shellcheck source=/dev/null
-source "$B/ondemand/cluster/env.sh"
+source "$B/ondemand/env.sh"
 echo "Bench2Dex fork @ $(GIT -C "$REPO_DIR" rev-parse --short HEAD)"
 
 echo "=== [3/5] setup ==="
 # shellcheck source=/dev/null
-source "$CODE_DIR/cluster/setup.sh"
+source "$CODE_DIR/setup.sh"
 
 echo "=== [4/5] fetch: tasks [$TASKS] x $EPISODES episodes ==="
 export APPTAINERENV_TASKS="$TASKS" APPTAINERENV_EPISODES="$EPISODES"
-"${ISAAC[@]}" "$PY" cluster/fetch_data.py
+"${ISAAC[@]}" "$PY" ondemand/fetch_data.py
 
 echo "=== [5/5] submit ==="
 RUNNING="$(squeue -h -u "$USER" -o '%j' 2>/dev/null | grep -c '^b2dr-retarget' || true)"
@@ -101,10 +101,10 @@ done
 N="$(wc -l < "$WORKLIST")"
 [ "$N" -gt 0 ] || { echo "FATAL: empty worklist"; exit 1; }
 echo "$N items -> $WORKLIST"
-ARRAY="$(sbatch --parsable --array="0-$(( N - 1 ))%$MAX_GPUS" --export=ALL,WORKLIST="$WORKLIST" "$CODE_DIR/cluster/retarget_array.sbatch")"
+ARRAY="$(sbatch --parsable --array="0-$(( N - 1 ))%$MAX_GPUS" --export=ALL,WORKLIST="$WORKLIST" "$CODE_DIR/retarget_array.sbatch")"
 echo "array job $ARRAY"
 if [ "${UPLOAD:-1}" = "1" ]; then
-  sbatch --dependency="afterany:${ARRAY%%;*}" --export=ALL "$CODE_DIR/cluster/finalize.sbatch"
+  sbatch --dependency="afterany:${ARRAY%%;*}" --export=ALL "$CODE_DIR/finalize.sbatch"
 fi
 squeue -u "$USER" -o '%.12i %.20j %.10T %.10M %.20E'
 echo "=== b2dr-main done: $(date) ==="

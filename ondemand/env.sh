@@ -1,8 +1,9 @@
-# Shared environment for every b2dr cluster job. Sourced, never submitted (no #SBATCH).
+# Shared environment for every ondemand (cluster) job. Sourced, never submitted (no #SBATCH).
+# ondemand/ holds only the cluster side -- jobs, environment, setup, checks; the retargeting itself is
+# retarget/ (library) and tools/retarget/ (entry points) of this Bench2Dex fork.
 #
 # Layout: $HOME/b2d is bound to /workspace inside the Isaac Sim container, the same tree the dev box
-# has, so b2dr's defaults (B2D_ROOT=/workspace) hold on both. The Isaac Sim 5.1 SIF and the
-# PYTHONUSERBASE with Isaac Lab are shared with kaia_lerobot/cluster/b2d_sim_check.sbatch.
+# has, so the retarget package's defaults (B2D_ROOT=/workspace) hold on both.
 #
 #   $HOME/b2d/
 #     Bench2Dex/            the fork HyeonseokE/Bench2Dex (git pull --ff-only at the start of every job);
@@ -16,7 +17,7 @@ export USER="${USER:-$(id -un)}"
 
 WS="$HOME/b2d"
 REPO_DIR="$WS/Bench2Dex"                         # git root (the fork)
-CODE_DIR="$REPO_DIR/ondemand"                    # this pipeline
+CODE_DIR="$REPO_DIR/ondemand"                    # the cluster module (jobs, env, setup)
 SIF="${SIF:-$WS/sif/isaac-sim_5.1.0.sif}"
 ISAAC_IMAGE="docker://nvcr.io/nvidia/isaac-sim:5.1.0"
 GIT_IMAGE="docker://hyeonseoke/lerobot:v1"      # carries git; the bare compute node may not
@@ -61,7 +62,7 @@ if [ "${NVCCLI:-0}" = "1" ]; then
 fi
 # An array, not a function, so `timeout` can run it.
 ISAAC=(apptainer exec "${GPU_FLAG[@]}" --writable-tmpfs
-       --home "$NODE_HOME" --bind "$WS:/workspace" --pwd /workspace/Bench2Dex/ondemand "$SIF")
+       --home "$NODE_HOME" --bind "$WS:/workspace" --pwd /workspace/Bench2Dex "$SIF")
 PY=/isaac-sim/python.sh
 GIT() { apptainer exec --bind "$WS" "$GIT_IMAGE" git "$@"; }
 

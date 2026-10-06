@@ -1,6 +1,6 @@
 """One-to-one audit of a retargeted replay episode against the released Bench2Dex data.
 
-  python scripts/audit_episode.py --cand <our replay-generalization/episode.hdf5> \
+  python tools/retarget/audit_episode.py --cand <our replay-generalization/episode.hdf5> \
       --task_ref <released replay of the same task> --robot_ref <released replay recorded with the target hand> \
       --source <released origin episode the retarget came from>
 

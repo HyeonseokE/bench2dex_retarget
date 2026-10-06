@@ -4,7 +4,7 @@ Runs inside the Isaac Sim container (huggingface_hub and yaml come from the setu
 
   episodes  Bench2Dex/teleopdata dataset/<task>/origin-generalization/episode_000000..N-1.hdf5
             (origin = trajectories without images, ~4 MB each), plus episodes 0-4 of one task per
-            hand (06 RH56DFX, 07 RH5DG2, 43 Shadow, 08 Schunk, 21 Wuji): b2dr.coupling fits each
+            hand (06 RH56DFX, 07 RH5DG2, 43 Shadow, 08 Schunk, 21 Wuji): retarget.coupling fits each
             target hand's mimic joints on that hand's own demos, whatever task is being retargeted.
   assets    the whole Bench2Dex/Assets repo (~19 GB, once). Retargeting alone needs only the five
             UR5 robots and the task objects, but stage 5 renders with --restore-generalization,

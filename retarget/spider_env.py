@@ -5,7 +5,7 @@ Control, as in the task-06 prototype (retarget/dexmachina_env.py, the settings S
            wrist_trans_scale / wrist_rot_scale and realised by one damped-least-squares IK step
            on that arm, integrated on the previous command (ik_from_command).
   fingers  a residual on the actuated hand joints, +-finger_res_cap rad around the reference;
-           the non-actuated joints follow b2dr.coupling, locked ones stay at 0.
+           the non-actuated joints follow retarget.coupling, locked ones stay at 0.
   gate     residuals are faded in only around the frames a hand manipulates something
            (gate_margin, gate_ramp); elsewhere the robot replays the reference.
   ema      joint targets are low-passed: target = ema * previous + (1 - ema) * new.

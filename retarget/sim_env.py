@@ -6,7 +6,7 @@ Because the episode is fixed, the scene is built for it directly -- table at the
 (generalized) height, objects at their recorded first-frame poses -- with Bench2Dex's own helpers:
 
   table / support table   build.table_geometry, as build.scene_builder._spawn_table spawns them
-  robot                   b2dr.robots.spawn_robot (the benchmark spawner, unmodified)
+  robot                   retarget.robots.spawn_robot (the benchmark spawner, unmodified)
   objects                 build.spawners._build_usd_cfg + build.object_initial_state for
                           articulations (actuators, joint limits, fix_root_link)
 

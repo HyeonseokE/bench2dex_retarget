@@ -5,13 +5,13 @@ it); array tasks render episodes of the same (robot, task) concurrently, so each
 with the same functions and settings: occupancy_gt (voxel 0.01 m, collision geometry, per-episode
 auto bounds) and box3d + box2d, written in place.
 
-  python scripts/label_episode.py <replay-generalization/episode_XXXXXX.hdf5>
+  python tools/retarget/label_episode.py <replay-generalization/episode_XXXXXX.hdf5>
 """
 
 import os
 import sys
 
-B2D = os.path.join(os.environ.get("B2D_ROOT", "/workspace"), "Bench2Dex")
+B2D = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # Bench2Dex root
 sys.path.insert(0, B2D)
 os.chdir(B2D)
 from collector.config import normalize_occupancy_gt_config  # noqa: E402

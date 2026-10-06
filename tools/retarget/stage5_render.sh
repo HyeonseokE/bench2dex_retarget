@@ -1,20 +1,20 @@
 #!/bin/bash
 # Stage 5: render recorded episodes the way Bench2Dex built its released replay-generalization data.
 #
-#   bash scripts/stage5_render.sh <origin-generalization dir> [episode file names...]
+#   bash tools/retarget/stage5_render.sh <origin-generalization dir> [episode file names...]
 #
 # For each origin episode: Bench2Dex replay.py --restore-generalization (the released replay files
 # carry _replay_generalization_mode=restored) with RGB on the six collect-config cameras and TacMap
 # tactile, written to the sibling replay-generalization/ directory; then the GT labels
-# (occupancy + box3d/box2d) the released data has, per file (scripts/label_episode.py).
+# (occupancy + box3d/box2d) the released data has, per file (tools/retarget/label_episode.py).
 #
-# PY (default: python) and B2D_ROOT (default /workspace) select the interpreter and the tree.
+# PY (default: python) selects the interpreter.
 set -e
 ORIGIN="$(cd "$1" && pwd)"; shift
 REPLAY="$(dirname "$ORIGIN")/replay-generalization"
 PY="${PY:-python}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
-cd "${B2D_ROOT:-/workspace}/Bench2Dex"
+cd "$HERE/../.."                              # Bench2Dex root
 mkdir -p "$REPLAY"
 files=("$@")
 [ ${#files[@]} -gt 0 ] || files=($(cd "$ORIGIN" && ls episode_??????.hdf5))

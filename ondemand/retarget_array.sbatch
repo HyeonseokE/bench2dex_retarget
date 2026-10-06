@@ -1,6 +1,6 @@
 #!/bin/bash
 # One array task = one (task, episode) line of $WORKLIST, retargeted onto every other robot.
-# Submitted by cluster/main_job.sbatch from the pulled checkout -- do not paste this one.
+# Submitted by ondemand/main_job.sbatch from the pulled checkout -- do not paste this one.
 #
 # PACK targets share this task's GPU (default 2 of the 4): a 1024-sample SPIDER run keeps the
 # 96 GB pro6000 well below full, and the per-step Python loop leaves compute idle between launches.
@@ -18,7 +18,7 @@ set -euo pipefail
 export HOME="${HOME:-$(getent passwd "$(id -un)" | cut -d: -f6)}"
 REPO_DIR="$HOME/b2d/Bench2Dex"
 # shellcheck source=/dev/null
-source "$REPO_DIR/ondemand/cluster/env.sh"
+source "$REPO_DIR/ondemand/env.sh"
 sync_repo "" "$REPO_DIR"                     # pick up pushes made since the entry point ran
 
 [ -n "${SLURM_ARRAY_TASK_ID:-}" ] || { echo "FATAL: not an array task"; exit 1; }
@@ -30,4 +30,4 @@ echo "=== array $SLURM_ARRAY_TASK_ID: task $TASK episode $EPISODE on $(hostname)
 nvidia-smi --query-gpu=name,memory.used,memory.total --format=csv,noheader || true
 
 # shellcheck source=/dev/null
-source "$CODE_DIR/cluster/retarget_body.sh"
+source "$CODE_DIR/retarget_body.sh"

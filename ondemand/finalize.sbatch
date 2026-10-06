@@ -1,6 +1,6 @@
 #!/bin/bash
 # After a task's array: write the dataset card (README.md) and failures.json of every target repo.
-# Submitted by cluster/main_job.sbatch with --dependency=afterany on the array -- do not paste this one.
+# Submitted by ondemand/main_job.sbatch with --dependency=afterany on the array -- do not paste this one.
 # Episodes that never succeeded are listed there as left out, to be handled later.
 #
 #SBATCH --job-name=b2dr-finalize
@@ -15,9 +15,9 @@ set -euo pipefail
 export HOME="${HOME:-$(getent passwd "$(id -un)" | cut -d: -f6)}"
 REPO_DIR="$HOME/b2d/Bench2Dex"
 # shellcheck source=/dev/null
-source "$REPO_DIR/ondemand/cluster/env.sh"
+source "$REPO_DIR/ondemand/env.sh"
 sync_repo "" "$REPO_DIR"
 export APPTAINERENV_HF_NAMESPACE="${HF_NAMESPACE:-}"
 for t in ${TASKS:?}; do
-  "${ISAAC[@]}" "$PY" scripts/hf_card.py --task "$t" ${TARGETS:+--targets "$TARGETS"} || echo "[warn] card for $t failed"
+  "${ISAAC[@]}" "$PY" tools/retarget/hf_card.py --task "$t" ${TARGETS:+--targets "$TARGETS"} || echo "[warn] card for $t failed"
 done

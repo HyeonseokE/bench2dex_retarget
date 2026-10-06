@@ -1,10 +1,10 @@
 """Write the dataset card (README.md) and failures.json of every target repo of a task.
 
-Run once the task's episodes are done (cluster/finalize.sbatch does it after the array). The card is
+Run once the task's episodes are done (ondemand/finalize.sbatch does it after the array). The card is
 built from what is actually in the repo plus the local status.json of every source episode: which
 episodes are in, which never succeeded within the retry budget (left out, to be handled later).
 
-  python scripts/hf_card.py --task 06 [--targets "shadow wuji"]
+  python tools/retarget/hf_card.py --task 06 [--targets "shadow wuji"]
 """
 
 import argparse
@@ -14,9 +14,9 @@ import re
 import sys
 import tempfile
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from b2dr import paths, robots  # noqa: E402
-from b2dr.task import list_episodes, load_episode  # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))  # Bench2Dex root
+from retarget import paths, robots  # noqa: E402
+from retarget.task import list_episodes, load_episode  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from upload_hf import repo_id, retry, token  # noqa: E402
@@ -43,7 +43,7 @@ rendered exactly like the released [Bench2Dex/teleopdata](https://huggingface.co
 
 - **Episodes:** {n_up} of {n_src} source episodes ({missing_note})
 - **Success:** every episode here is a stable success of Bench2Dex's own `MetricTracker` on the recorded run.
-- **Generator:** [HyeonseokE/Bench2Dex `ondemand/`](https://github.com/HyeonseokE/Bench2Dex/tree/main/ondemand)
+- **Generator:** [HyeonseokE/Bench2Dex `retarget/`](https://github.com/HyeonseokE/Bench2Dex/tree/main/retarget)
 
 ## Layout
 

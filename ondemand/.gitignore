@@ -1,6 +1,0 @@
-__pycache__/
-*.pyc
-*.npz
-*.hdf5
-*.log
-b2dr_runs/
