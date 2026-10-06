@@ -13,7 +13,7 @@
 
 set -euo pipefail
 export HOME="${HOME:-$(getent passwd "$(id -un)" | cut -d: -f6)}"
-REPO_DIR="$HOME/b2d/Bench2Dex"
+REPO_DIR="$HOME/b2d/bench2dex_retarget"
 # shellcheck source=/dev/null
 source "$REPO_DIR/ondemand/env.sh"
 sync_repo "" "$REPO_DIR"

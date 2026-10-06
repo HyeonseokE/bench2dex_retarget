@@ -5,7 +5,7 @@
 #
 # In order:
 #   1. preflight  ~/.hf_token must exist (the Hub rate-limits anonymous downloads mid-way)
-#   2. git sync   clone or fast-forward $HOME/b2d/Bench2Dex, the fork HyeonseokE/Bench2Dex (this
+#   2. git sync   clone or fast-forward $HOME/b2d/bench2dex_retarget, the fork HyeonseokE/bench2dex_retarget (this
 #                 pipeline is its ondemand/ folder; Bench2Dex itself comes with it)
 #   3. setup      Isaac Sim 5.1 SIF, Isaac Lab v2.3.2 (once; ~1 h the first time)
 #   4. fetch      teleop episodes + the assets of the selected tasks (skips what is already there)
@@ -41,7 +41,7 @@ export HOME="${HOME:-$(getent passwd "$(id -un)" | cut -d: -f6)}"
 export USER="${USER:-$(id -un)}"
 echo "=== b2dr-main start: $(date) on $(hostname) ==="
 
-REPO_URL="${REPO_URL:-https://github.com/HyeonseokE/Bench2Dex.git}"   # the fork; this pipeline is its ondemand/
+REPO_URL="${REPO_URL:-https://github.com/HyeonseokE/bench2dex_retarget.git}"   # the fork; this pipeline is its ondemand/
 export TASKS="${TASKS:-06}"          # one task per submission (06 12 42 07 34 60 43 76 08 44 21 27)
 export EPISODES="${EPISODES:-50}"
 MAX_GPUS="${MAX_GPUS:-2}"
@@ -52,7 +52,7 @@ echo "token ok"
 
 echo "=== [2/5] git sync ==="
 WS="$HOME/b2d"
-B="$WS/Bench2Dex"
+B="$WS/bench2dex_retarget"
 mkdir -p "$WS"
 export APPTAINER_CACHEDIR="/tmp/b2d-$USER/apptainer-cache"
 mkdir -p "$APPTAINER_CACHEDIR"

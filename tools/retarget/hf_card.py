@@ -43,7 +43,7 @@ rendered exactly like the released [Bench2Dex/teleopdata](https://huggingface.co
 
 - **Episodes:** {n_up} of {n_src} source episodes ({missing_note})
 - **Success:** every episode here is a stable success of Bench2Dex's own `MetricTracker` on the recorded run.
-- **Generator:** [HyeonseokE/Bench2Dex `retarget/`](https://github.com/HyeonseokE/Bench2Dex/tree/main/retarget)
+- **Generator:** [HyeonseokE/bench2dex_retarget `retarget/`](https://github.com/HyeonseokE/bench2dex_retarget/tree/main/retarget)
 
 ## Layout
 

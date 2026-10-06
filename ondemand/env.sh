@@ -6,7 +6,7 @@
 # has, so the retarget package's defaults (B2D_ROOT=/workspace) hold on both.
 #
 #   $HOME/b2d/
-#     Bench2Dex/            the fork HyeonseokE/Bench2Dex (git pull --ff-only at the start of every job);
+#     bench2dex_retarget/   the fork HyeonseokE/bench2dex_retarget (git pull --ff-only at the start of every job);
 #                           this pipeline lives in its ondemand/ folder
 #     IsaacLab/             v2.3.2                     assets/ (+ dex2bench_dataset -> assets)
 #     b2d_origin/dataset/   teleop episodes             b2dr_runs/  outputs
@@ -16,7 +16,7 @@ export HOME="${HOME:-$(getent passwd "$(id -un)" | cut -d: -f6)}"
 export USER="${USER:-$(id -un)}"
 
 WS="$HOME/b2d"
-REPO_DIR="$WS/Bench2Dex"                         # git root (the fork)
+REPO_DIR="$WS/bench2dex_retarget"                         # git root (the fork)
 CODE_DIR="$REPO_DIR/ondemand"                    # the cluster module (jobs, env, setup)
 SIF="${SIF:-$WS/sif/isaac-sim_5.1.0.sif}"
 ISAAC_IMAGE="docker://nvcr.io/nvidia/isaac-sim:5.1.0"
@@ -62,7 +62,7 @@ if [ "${NVCCLI:-0}" = "1" ]; then
 fi
 # An array, not a function, so `timeout` can run it.
 ISAAC=(apptainer exec "${GPU_FLAG[@]}" --writable-tmpfs
-       --home "$NODE_HOME" --bind "$WS:/workspace" --pwd /workspace/Bench2Dex "$SIF")
+       --home "$NODE_HOME" --bind "$WS:/workspace" --pwd /workspace/bench2dex_retarget "$SIF")
 PY=/isaac-sim/python.sh
 GIT() { apptainer exec --bind "$WS" "$GIT_IMAGE" git "$@"; }
 

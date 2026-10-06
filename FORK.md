@@ -1,4 +1,4 @@
-# Fork notes (HyeonseokE/Bench2Dex)
+# Fork notes (HyeonseokE/bench2dex_retarget)
 
 Rule: **upstream files are never edited.** Everything this fork adds lives in new files, so
 `git merge upstream/main` cannot conflict. Behaviour changes go in wrappers (or runtime patches

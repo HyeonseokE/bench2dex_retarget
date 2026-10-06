@@ -2,8 +2,8 @@
 # One-time setup on a plain GPU server (conda, no container), mirroring the dev box:
 # Isaac Sim 5.1 (pip) + Isaac Lab v2.3.2 in a Python 3.11 conda env, then the teleop episodes and assets.
 #
-#   git clone https://github.com/HyeonseokE/Bench2Dex.git $B2D_ROOT/Bench2Dex
-#   bash $B2D_ROOT/Bench2Dex/tools/retarget/local/setup.sh                 # env only
+#   git clone https://github.com/HyeonseokE/bench2dex_retarget.git $B2D_ROOT/bench2dex_retarget
+#   bash $B2D_ROOT/bench2dex_retarget/tools/retarget/local/setup.sh                 # env only
 #   TASKS="06 12 42" bash .../setup.sh --fetch                             # + data for these tasks
 #
 # Needs: NVIDIA driver >= 570 (RTX 30xx/40xx/50xx, A/H/L-series), conda, git, ~60 GB disk
@@ -48,4 +48,4 @@ if [ "${1:-}" = "--fetch" ]; then
   echo "=== data: tasks $TASKS, ${EPISODES:-50} episodes each ==="
   B2D_ROOT="$B2D_ROOT" TASKS="$TASKS" EPISODES="${EPISODES:-50}" python Bench2Dex/ondemand/fetch_data.py
 fi
-echo "SETUP OK  ->  source $B2D_ROOT/Bench2Dex/tools/retarget/local/env.sh"
+echo "SETUP OK  ->  source $B2D_ROOT/bench2dex_retarget/tools/retarget/local/env.sh"

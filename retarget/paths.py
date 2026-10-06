@@ -3,7 +3,7 @@
 Everything hangs off one root, ``B2D_ROOT`` (default ``/workspace``). On the cluster the job binds
 ``$HOME/b2d`` there, so the same paths work in both places:
 
-    $B2D_ROOT/Bench2Dex            benchmark code -- the fork this package lives in (Bench2Dex/retarget)
+    $B2D_ROOT/bench2dex_retarget            benchmark code -- the fork this package lives in (Bench2Dex/retarget)
     $B2D_ROOT/dex2bench_dataset    -> assets (robots, objects); Bench2Dex's relative paths expect this name
     $B2D_ROOT/b2d_origin/dataset   teleop episodes (HF Bench2Dex/teleopdata, origin-generalization)
     $B2D_ROOT/b2dr_runs            everything this repo writes
@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(os.environ.get("B2D_ROOT", "/workspace"))
-BENCH2DEX = Path(os.environ.get("B2D_BENCH2DEX", Path(__file__).resolve().parents[1]))   # .../Bench2Dex/retarget
+BENCH2DEX = Path(os.environ.get("B2D_BENCH2DEX", Path(__file__).resolve().parents[1]))   # .../bench2dex_retarget/retarget
 DATASET = Path(os.environ.get("B2D_DATASET", ROOT / "b2d_origin" / "dataset"))
 RUNS = Path(os.environ.get("B2DR_RUNS", ROOT / "b2dr_runs"))
 

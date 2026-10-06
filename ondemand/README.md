@@ -12,13 +12,13 @@ OOD Job Composer → New Job → 파일 내용 붙여넣기 → Submit.
 | 1 | `env_check.sbatch` | 환경 점검. L1 CUDA · L2 apptainer/SIF · L3 Isaac Sim · L4 카메라 · L5–L10 파이프라인 1–5단계(06 ep0, 짧게) · L11 HF 쓰기 권한. 출력은 `$HOME/b2d/b2dr_runs_envcheck/` |
 | 2 | `main_job.sbatch` | 실제 작업. 태스크 하나 × 50 에피소드 → 소스 외 4종 손으로 retarget → 기록·렌더 → HF 업로드 |
 
-나머지 파일은 잡이 clone/pull한 fork 체크아웃(`$HOME/b2d/Bench2Dex`)에서 읽는다. 그래서 `retarget/`, `tools/retarget/`,
+나머지 파일은 잡이 clone/pull한 fork 체크아웃(`$HOME/b2d/bench2dex_retarget`)에서 읽는다. 그래서 `retarget/`, `tools/retarget/`,
 `ondemand/*.sh`를 고친 경우에는 push만 하면 되고, 진입점 sbatch 자체를 고쳤을 때만 다시 붙여넣는다.
 
 ## 흐름 (`main_job.sbatch`)
 
 1. preflight — `~/.hf_token` 확인 (익명 다운로드는 Hub rate-limit에 걸린다)
-2. git sync — `$HOME/b2d/Bench2Dex`에 fork clone 또는 fast-forward (예전 저자 원본 체크아웃이 있으면 fork로 전환)
+2. git sync — `$HOME/b2d/bench2dex_retarget`에 fork clone 또는 fast-forward (예전 저자 원본 체크아웃이 있으면 fork로 전환)
 3. setup — Isaac Sim 5.1 SIF, Isaac Lab v2.3.2 (`setup.sh`, 최초 1회 약 1시간)
 4. fetch — teleop 에피소드 + 선택 태스크 에셋 (`fetch_data.py`, 있는 건 건너뜀)
 5. submit — (task, episode)당 array 태스크 하나 (`retarget_array.sbatch` → `retarget_body.sh` → `tools/retarget/run_target.py`),

@@ -38,7 +38,7 @@ export HOME="${HOME:-$(getent passwd "$(id -un)" | cut -d: -f6)}"
 export USER="${USER:-$(id -un)}"
 echo "=== b2dr-envcheck start: $(date) on $(hostname) ==="
 
-REPO_URL="${REPO_URL:-https://github.com/HyeonseokE/Bench2Dex.git}"   # the fork; this pipeline is its ondemand/
+REPO_URL="${REPO_URL:-https://github.com/HyeonseokE/bench2dex_retarget.git}"   # the fork; this pipeline is its ondemand/
 ONLY="${ONLY:-L1 L2 L3 L4 L4c L5 L6 L7 L8 L9 L10 L11}"
 
 echo "=== [L0] host ==="
@@ -51,7 +51,7 @@ L0_INFO="$(nvidia-smi --query-gpu=name,driver_version --format=csv,noheader 2>/d
 
 echo "=== git sync ==="
 WS="$HOME/b2d"
-B="$WS/Bench2Dex"
+B="$WS/bench2dex_retarget"
 mkdir -p "$WS"
 export APPTAINER_CACHEDIR="/tmp/b2d-$USER/apptainer-cache"
 mkdir -p "$APPTAINER_CACHEDIR"
@@ -101,7 +101,7 @@ run_check() {   # run_check NAME MARKER TIMEOUT_S cmd...
   echo "--- $name: ${RES[$name]} in ${INFO[$name]}"
   grep -E "^RESULT|^\[L[0-9]|^L[0-9]|Traceback|Error:|FATAL|Episode step limit|rt_ratio" "$log" | tail -8 | sed 's/^/  /' || true
 }
-CK=/workspace/Bench2Dex/ondemand/checks
+CK=/workspace/bench2dex_retarget/ondemand/checks
 EP0="$RUNS/06_fruit_bowl_loading/ep000"
 
 run_check L1 L1_OK 600 "${ISAAC[@]}" "$PY" $CK/l1_cuda.py
@@ -113,7 +113,7 @@ run_check L3 L3_OK 1500 "${ISAAC[@]}" "$PY" $CK/l3_isaacsim.py
 run_check L4 L4_OK 1500 "${ISAAC[@]}" "$PY" $CK/l4_camera.py --headless --num_envs 1024
 run_check L4c L4C_OK 1200 "${ISAAC[@]}" "$PY" $CK/l4_camera.py --headless --enable_cameras --num_envs 1 --png "$COUT/l4c_camera.png"
 run_check L5 "Episode step limit reached" 2400 "${ISAAC[@]}" bash -c \
-  "cd /workspace/Bench2Dex && $PY main.py --task scenes/06_fruit_bowl_loading.yaml --episode-steps 300 --headless --profile"
+  "cd /workspace/bench2dex_retarget && $PY main.py --task scenes/06_fruit_bowl_loading.yaml --episode-steps 300 --headless --profile"
 run_check L6 "RESULT stage1" 3600 "${ISAAC[@]}" "$PY" tools/retarget/stage1_reference.py --task 06 --episode 0 --headless
 run_check L7 "RESULT stage2" 3600 "${ISAAC[@]}" "$PY" tools/retarget/stage2_kinematic.py --task 06 --episode 0 --target shadow --headless
 run_check L8 "RESULT stage3" 3600 "${ISAAC[@]}" "$PY" tools/retarget/stage3_spider.py --task 06 --episode 0 --target shadow \
