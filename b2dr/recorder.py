@@ -152,6 +152,8 @@ def write_episode(trace: dict, task: str, episode: int, root: Path, extra_meta: 
                 updates += 1
         objs = objects_at(fr["state"], i)
         cmd = fr.get("cmd") if i > 0 else None                    # first frame: no action, as collected
+        if cmd is None and i == len(frames) - 1 and i > 0:        # the release fills the last frame with the
+            cmd = frames[i - 1].get("cmd")                        # held target (action_valid stays False)
         buf.add_frame(FrameRecord(
             frame_index=i, timestamp_ns=int(src_ts[0]) + (sim_step - int(src_step[0])) * dt_ns, sim_step=sim_step,
             valid=True, errors=[], camera={}, robot=robot_at(fr["state"]), objects=objs,
