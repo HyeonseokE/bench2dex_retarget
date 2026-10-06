@@ -11,14 +11,13 @@ stage3_spider:
   sigma: 0.5
   guide_gain: 300.0
   squeeze: 0.02
-  back_frames: 10
-  back_max: 20
-  gate_look: 26
-  abort_on_fail: 0
+  max_retries: 3
+  backtrack: 2
+  gate_look: 30
   drop_jump: 0.025
   settle: 40
 spider_env:
-  gate_margin: 13
+  gate_margin: 15
   gate_ramp: 5
   action_ema: 0.8
   wrist_trans_scale: 0.05
