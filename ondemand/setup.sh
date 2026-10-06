@@ -38,7 +38,8 @@ else
     P=/isaac-sim/python.sh
     $P -c "import site; assert site.ENABLE_USER_SITE, \"user site disabled\""
     printf "numpy==1.26.4\ntorch==2.7.0\ntorchvision==0.22.0\npillow==11.3.0\n" > /workspace/.pyuser/constraints.txt
-    $P -c "import torch, sys; sys.exit(0 if torch.__version__.startswith(\"2.7\") else 1)" \
+    # Blackwell (sm_120) needs a CUDA 12.8 build; a 2.7.0+cu126 torch imports fine but has no sm_120 kernels.
+    $P -c "import torch, sys; sys.exit(0 if torch.__version__.startswith(\"2.7\") and torch.version.cuda == \"12.8\" else 1)" \
       || $P -m pip install --user torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
     # Isaac Lab v2.3.2 pins flatdict==4.0.1, whose setup.py needs pkg_resources: build it against an
     # old setuptools without isolation (IsaacLab issue #4576; failed the first sim check, 2026-10-05).
