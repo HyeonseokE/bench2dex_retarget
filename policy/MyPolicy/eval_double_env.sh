@@ -1,7 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-# Evaluate ACT through server/client entrypoint.
+# Evaluate a custom policy (policy/${POLICY_NAME}/deploy_policy.py) with the same
+# protocol as ACT: same seeds, step budget, generalization profiles, anchors.
+# Set POLICY_NAME env var to use a different policy directory (default: MyPolicy).
+# Set SERVER_PYTHON to run the policy server in a different python env.
 #
 # Usage:
 #   bash eval_double_env.sh TASK CKPT_DIR [positionals] [--key value ...]
@@ -24,9 +27,6 @@ set -euo pipefail
 #   --seed N                           eval seed (overrides positional)
 #   --headless                         run without GUI
 
-# Allocator-only setting (no numerical effect): reduces fragmentation OOMs when two evals share one GPU.
-export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
-
 TASK=${1:?"Usage: bash eval_double_env.sh TASK CKPT_DIR [args...]"}
 CKPT_DIR=${2:?"Usage: bash eval_double_env.sh TASK CKPT_DIR [args...]"}
 shift 2
@@ -34,6 +34,8 @@ shift 2
 # ── Defaults ──────────────────────────────────────────────────────────
 CKPT_NAME=policy_best.ckpt
 GPU_ID=0
+POLICY_NAME="${POLICY_NAME:-MyPolicy}"
+SERVER_PYTHON="${SERVER_PYTHON:-python}"
 NUM_EPISODES=50
 SEED=100000000
 GEN_PROFILE=none
@@ -99,19 +101,17 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
 PYEOF
 )
 
-python script/policy_model_server.py \
+"${SERVER_PYTHON}" script/policy_model_server.py \
     --host 127.0.0.1 \
     --port "${FREE_PORT}" \
-    --config policy/ACT/deploy_policy.yml \
+    --config policy/${POLICY_NAME}/deploy_policy.yml \
     --overrides \
-    --policy_name ACT \
+    --policy_name "${POLICY_NAME}" \
     --task_name "${TASK}" \
     --robot_key "" \
     --ckpt_dir "${CKPT_DIR}" \
     --ckpt_name "${CKPT_NAME}" \
     --seed "${SEED}" \
-    --temporal_agg true \
-    --temporal_agg_k 0.2 \
     ${ACTIVE_DOF_ARG} &
 SERVER_PID=$!
 
@@ -121,9 +121,9 @@ sleep 3
 python script/eval_policy_client.py \
     --host 127.0.0.1 \
     --port "${FREE_PORT}" \
-    --config policy/ACT/deploy_policy.yml \
+    --config policy/${POLICY_NAME}/deploy_policy.yml \
     --overrides \
-    --policy_name ACT \
+    --policy_name "${POLICY_NAME}" \
     --task_name "${TASK}" \
     --ckpt_dir "${CKPT_DIR}" \
     --ckpt_name "${CKPT_NAME}" \
@@ -132,8 +132,6 @@ python script/eval_policy_client.py \
     --episode_steps "${EVAL_EPISODE_STEPS}" \
     --start_episode "${START_EPISODE}" \
     --warmup_steps 60 \
-    --temporal_agg true \
-    --temporal_agg_k 0.2 \
     ${ACTIVE_DOF_ARG} \
     --generalization_profile "${GEN_PROFILE}" \
     ${RECORD_DIR:+--record_dir "${RECORD_DIR}"} \

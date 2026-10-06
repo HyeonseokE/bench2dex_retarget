@@ -1,0 +1,12 @@
+# MyPolicy deploy config — merged with CLI overrides from eval_double_env.sh.
+task_name: null
+policy_name: MyPolicy
+host: 127.0.0.1
+port: 9000
+seed: 100000000
+
+robot_key: null        # auto-detected from ckpt_dir (.../<task>/<robot_key>/<policy>/)
+use_active_dof: true   # same convention as released checkpoints
+device: cuda:0
+ckpt_dir: null
+ckpt_name: model.ckpt
