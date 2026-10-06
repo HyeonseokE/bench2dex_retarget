@@ -13,9 +13,9 @@
 
 set -euo pipefail
 export HOME="${HOME:-$(getent passwd "$(id -un)" | cut -d: -f6)}"
-REPO_DIR="$HOME/b2d/dex2bench_retarget"
+REPO_DIR="$HOME/b2d/Bench2Dex"
 # shellcheck source=/dev/null
-source "$REPO_DIR/cluster/env.sh"
+source "$REPO_DIR/ondemand/cluster/env.sh"
 sync_repo "" "$REPO_DIR"
 export APPTAINERENV_HF_NAMESPACE="${HF_NAMESPACE:-}"
 for t in ${TASKS:?}; do

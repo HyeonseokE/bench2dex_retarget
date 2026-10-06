@@ -1,4 +1,8 @@
-# dex2bench_retarget — Bench2Dex cross-embodiment SPIDER retargeting
+# ondemand — Bench2Dex cross-embodiment SPIDER retargeting + SLURM jobs
+
+이 폴더는 Bench2Dex fork(**[HyeonseokE/Bench2Dex](https://github.com/HyeonseokE/Bench2Dex)**)의 `ondemand/`다.
+레포 하나로 벤치마크 환경(상위 폴더 = Bench2Dex 원본 코드)과 retargeting·클러스터 잡(이 폴더)을 함께 관리한다.
+저자 원본은 `upstream`(github.com/Bench2Dex/Bench2Dex)으로 연결해 두고, 업데이트는 `git fetch upstream && git merge upstream/main`으로 받는다.
 
 Bench2Dex teleop 데모를 **소스 손에서 나머지 UR5 손 4종으로** 옮긴다. 학습 없이, 태스크 물체의 움직임을
 목표 로봇이 Bench2Dex 물리 그대로 재현하도록 SPIDER(MPPI 샘플링 최적화, arXiv 2511.09484)로 다듬는다.
@@ -29,7 +33,7 @@ stage 4·5의 출력은 HF `Bench2Dex/teleopdata`와 같은 트리·형식이다
 LeRobot v3가 필요하면 Bench2Dex의 `tools/export/convert_bench2dex_to_lerobot_v3.py`를 그대로 쓴다(ffmpeg, pyarrow 필요).
 형식 비교: `python scripts/verify_format.py <생성 파일> <공개 파일>`.
 
-로컬(dev 박스)에서 한 에피소드(stage 1–4): `bash scripts/run_episode.sh 06 0 shadow [--num_samples 1024 ...]`
+로컬(dev 박스, `ondemand/`에서) 한 에피소드(stage 1–4): `bash scripts/run_episode.sh 06 0 shadow [--num_samples 1024 ...]`
 
 ### 설계상 결정
 
@@ -42,15 +46,18 @@ LeRobot v3가 필요하면 Bench2Dex의 `tools/export/convert_bench2dex_to_lerob
 
 ## 클러스터 (pro6000, OpenOnDemand)
 
-> **`cluster/main_job.sbatch` 하나만 붙여넣어 던진다.** 나머지는 그 잡이 pull한 체크아웃에서 읽는다.
+> **붙여넣는 파일은 둘뿐이다**: 환경 점검 `ondemand/cluster/env_check.sbatch`, 실제 작업 `ondemand/cluster/main_job.sbatch`.
+> 나머지는 잡이 pull한 fork 체크아웃(`$HOME/b2d/Bench2Dex`)에서 읽는다.
 
-순서: 토큰 확인 → `$HOME/b2d/dex2bench_retarget` clone/pull → 셋업(Isaac Sim 5.1 SIF, Bench2Dex @ fd90dcc, Isaac Lab v2.3.2;
+순서: 토큰 확인 → fork `$HOME/b2d/Bench2Dex` clone/pull(예전 저자 원본 체크아웃이 있으면 fork로 전환) → 셋업(Isaac Sim 5.1 SIF, Isaac Lab v2.3.2;
 최초 1회 약 1시간) → 데이터 다운로드 → (task, episode)당 array 태스크 하나 제출. 각 array 태스크가 그 에피소드를 목표 로봇 4종으로
 retarget한다. GPU 한 장에 `PACK`(기본 2)개를 동시에 돌리고, `%MAX_GPUS`(기본 2)로 동시 실행 수를 묶는다.
 
 | 파일 | 역할 |
 |---|---|
-| `cluster/main_job.sbatch` | **진입점(붙여넣는 유일한 파일)** |
+| `cluster/env_check.sbatch` | **환경 점검 진입점** (L1 CUDA ~ L11 HF 권한, 파이프라인 1–5단계를 06 ep0로 짧게) |
+| `cluster/main_job.sbatch` | **작업 진입점** (태스크 하나 × 50 에피소드 → 4종 손, HF 업로드) |
+| `cluster/finalize.sbatch` | array 이후 각 HF 레포의 README·failures.json |
 | `cluster/retarget_array.sbatch` | array 런처. main_job이 체크아웃 경로에서 제출한다 |
 | `cluster/retarget_body.sh` | (task, ep) 하나: stage 1 → 목표별 stage 2/3/4 |
 | `cluster/env.sh` · `cluster/setup.sh` | 경로·컨테이너 래퍼 / 1회 셋업 |
@@ -58,7 +65,7 @@ retarget한다. GPU 한 장에 `PACK`(기본 2)개를 동시에 돌리고, `%MAX
 
 던지기 전 확인:
 1. `~/.hf_token`이 있을 것. 익명 다운로드는 Hub가 중간에 rate-limit한다.
-2. 수정한 코드가 GitHub에 push되어 있을 것. `main_job.sbatch` 자신을 고쳤다면 다시 붙여넣는다.
+2. 수정한 코드가 fork(`HyeonseokE/Bench2Dex`)에 push되어 있을 것. 진입점 sbatch 자신을 고쳤다면 다시 붙여넣는다.
 
 조절 (`sbatch --export=ALL,KNOB=값`):
 `TASKS="06 12 ..."` · `EPISODES=10` · `TARGETS="shadow wuji"` · `PACK=2` · `MAX_GPUS=2` · `SPIDER_ARGS="--num_samples 1024 --iters 5"`
@@ -80,7 +87,7 @@ retarget한다. GPU 한 장에 `PACK`(기본 2)개를 동시에 돌리고, `%MAX
 - **포맷 e2e** (06 ep0 → Shadow, 짧은 디버그 계획): stage 4 기록 → stage 5 렌더(카메라 6대 JPEG 480×640, TacMap 10 패드,
   occupancy·box 라벨) → Bench2Dex 변환기로 LeRobot v3 생성까지 통과. 공개 replay 파일과 구조 비교 시 남는 차이는
   (a) 손별 tactile 패드 이름(Bench2Dex가 로봇마다 다르게 정의), (b) 지표 스키마 버전(공개 데이터는 이전 Bench2Dex 코드로
-  수집, 여기는 고정 커밋 fd90dcc의 MetricTracker)뿐이다. 복원된 씬(배경·텍스처·조명·카메라·distractor)은 공개 RGB와 같은 장면이다.
+  수집, 여기는 fork에 들어 있는 Bench2Dex(fd90dcc 기준)의 MetricTracker)뿐이다. 복원된 씬(배경·텍스처·조명·카메라·distractor)은 공개 RGB와 같은 장면이다.
 - **상태 기록 방식인 이유**: SPIDER의 확정 실행은 커밋마다 스냅샷 복원에서 시작하므로, 관절 목표를 끊김 없이 다시 실행하면
   재현되지 않는다(06 ep3: 프로토타입 자기 env에서도, env 1개·1024개 모두 ~200 프레임에 사과를 떨어뜨림). 그래서 실제로 일어난 상태를 기록한다.
 - **성공 에피소드 e2e** (프로토타입 SPIDER v2의 06 ep3 → Shadow, 530 프레임): stage 4 기록 → MetricTracker 공식 판정 **성공** →

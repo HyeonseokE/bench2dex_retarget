@@ -23,12 +23,8 @@ if [ -d "$APPTAINER_CACHEDIR" ] && [ "$(du -s "$APPTAINER_CACHEDIR" | cut -f1)" 
   mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR"
 fi
 
-echo "=== [setup 2/3] Bench2Dex @ $B2D_REV, IsaacLab $ISAACLAB_TAG ==="
+echo "=== [setup 2/3] IsaacLab $ISAACLAB_TAG (Bench2Dex is the synced fork itself) ==="
 [ -d "$WS/IsaacLab/.git" ] || GIT clone --branch "$ISAACLAB_TAG" --depth 1 https://github.com/isaac-sim/IsaacLab.git "$WS/IsaacLab"
-[ -d "$WS/Bench2Dex/.git" ] || GIT clone "$B2D_REPO" "$WS/Bench2Dex"
-GIT -C "$WS/Bench2Dex" cat-file -e "${B2D_REV}^{commit}" 2>/dev/null || GIT -C "$WS/Bench2Dex" fetch origin
-GIT -C "$WS/Bench2Dex" -c advice.detachedHead=false checkout -q "$B2D_REV"
-echo "Bench2Dex @ $(GIT -C "$WS/Bench2Dex" rev-parse --short HEAD)"
 [ -e "$WS/dex2bench_dataset" ] || ln -s assets "$WS/dex2bench_dataset"
 mkdir -p "$WS/assets"
 

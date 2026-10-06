@@ -5,8 +5,9 @@
 # PYTHONUSERBASE with Isaac Lab are shared with kaia_lerobot/cluster/b2d_sim_check.sbatch.
 #
 #   $HOME/b2d/
-#     dex2bench_retarget/   this repo (git pull --ff-only at the start of every job)
-#     Bench2Dex/ IsaacLab/  pinned checkouts            assets/ (+ dex2bench_dataset -> assets)
+#     Bench2Dex/            the fork HyeonseokE/Bench2Dex (git pull --ff-only at the start of every job);
+#                           this pipeline lives in its ondemand/ folder
+#     IsaacLab/             v2.3.2                     assets/ (+ dex2bench_dataset -> assets)
 #     b2d_origin/dataset/   teleop episodes             b2dr_runs/  outputs
 #     .pyuser/              Isaac Lab + deps            sif/isaac-sim_5.1.0.sif
 
@@ -14,13 +15,12 @@ export HOME="${HOME:-$(getent passwd "$(id -un)" | cut -d: -f6)}"
 export USER="${USER:-$(id -un)}"
 
 WS="$HOME/b2d"
-REPO_DIR="$WS/dex2bench_retarget"
+REPO_DIR="$WS/Bench2Dex"                         # git root (the fork)
+CODE_DIR="$REPO_DIR/ondemand"                    # this pipeline
 SIF="${SIF:-$WS/sif/isaac-sim_5.1.0.sif}"
 ISAAC_IMAGE="docker://nvcr.io/nvidia/isaac-sim:5.1.0"
 GIT_IMAGE="docker://hyeonseoke/lerobot:v1"      # carries git; the bare compute node may not
 ISAACLAB_TAG="v2.3.2"
-B2D_REPO="https://github.com/Bench2Dex/Bench2Dex.git"
-B2D_REV="${B2D_REV:-fd90dcc}"                    # what the dev box runs
 mkdir -p "$WS/sif" "$WS/.pyuser" "$WS/.cache/pip" "$WS/.cache/huggingface" "$WS/b2dr_runs"
 
 # Node-local scratch: apptainer layers and the container $HOME (Kit's shader/texture caches).
@@ -61,7 +61,7 @@ if [ "${NVCCLI:-0}" = "1" ]; then
 fi
 # An array, not a function, so `timeout` can run it.
 ISAAC=(apptainer exec "${GPU_FLAG[@]}" --writable-tmpfs
-       --home "$NODE_HOME" --bind "$WS:/workspace" --pwd /workspace/dex2bench_retarget "$SIF")
+       --home "$NODE_HOME" --bind "$WS:/workspace" --pwd /workspace/Bench2Dex/ondemand "$SIF")
 PY=/isaac-sim/python.sh
 GIT() { apptainer exec --bind "$WS" "$GIT_IMAGE" git "$@"; }
 

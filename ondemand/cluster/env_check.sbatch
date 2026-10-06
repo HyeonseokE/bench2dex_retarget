@@ -38,7 +38,7 @@ export HOME="${HOME:-$(getent passwd "$(id -un)" | cut -d: -f6)}"
 export USER="${USER:-$(id -un)}"
 echo "=== b2dr-envcheck start: $(date) on $(hostname) ==="
 
-REPO_URL="${REPO_URL:-https://github.com/HyeonseokE/dex2bench_retarget.git}"
+REPO_URL="${REPO_URL:-https://github.com/HyeonseokE/Bench2Dex.git}"   # the fork; this pipeline is its ondemand/
 ONLY="${ONLY:-L1 L2 L3 L4 L4c L5 L6 L7 L8 L9 L10 L11}"
 
 echo "=== [L0] host ==="
@@ -51,22 +51,30 @@ L0_INFO="$(nvidia-smi --query-gpu=name,driver_version --format=csv,noheader 2>/d
 
 echo "=== git sync ==="
 WS="$HOME/b2d"
+B="$WS/Bench2Dex"
 mkdir -p "$WS"
 export APPTAINER_CACHEDIR="/tmp/b2d-$USER/apptainer-cache"
 mkdir -p "$APPTAINER_CACHEDIR"
-if [ -d "$WS/dex2bench_retarget/.git" ]; then
-  apptainer exec --bind "$WS" docker://hyeonseoke/lerobot:v1 git -C "$WS/dex2bench_retarget" pull --ff-only \
-    || { echo "FATAL: git pull failed. Fix it by hand."; exit 1; }
+LG() { apptainer exec --bind "$WS" docker://hyeonseoke/lerobot:v1 git "$@"; }
+if [ -d "$B/.git" ]; then
+  if [ "$(LG -C "$B" remote get-url origin)" != "$REPO_URL" ]; then
+    # an earlier setup cloned the authors' repo here, detached at fd90dcc: switch it to the fork
+    echo "switching $B to $REPO_URL"
+    LG -C "$B" remote set-url origin "$REPO_URL"
+    LG -C "$B" fetch -q origin && LG -C "$B" checkout -q -B main origin/main
+  else
+    LG -C "$B" pull --ff-only || { echo "FATAL: git pull failed (network, or the checkout diverged). Fix it by hand."; exit 1; }
+  fi
 else
-  apptainer exec --bind "$WS" docker://hyeonseoke/lerobot:v1 git clone "$REPO_URL" "$WS/dex2bench_retarget"
+  LG clone "$REPO_URL" "$B"
 fi
 # shellcheck source=/dev/null
-source "$WS/dex2bench_retarget/cluster/env.sh"
-echo "repo @ $(GIT -C "$REPO_DIR" rev-parse --short HEAD)"
+source "$B/ondemand/cluster/env.sh"
+echo "Bench2Dex fork @ $(GIT -C "$REPO_DIR" rev-parse --short HEAD)"
 
 echo "=== setup ==="
 # shellcheck source=/dev/null
-source "$REPO_DIR/cluster/setup.sh"
+source "$CODE_DIR/cluster/setup.sh"
 
 echo "=== fetch (task 06, episode 0, all assets) ==="
 export APPTAINERENV_TASKS="06" APPTAINERENV_EPISODES="1"
@@ -93,7 +101,7 @@ run_check() {   # run_check NAME MARKER TIMEOUT_S cmd...
   echo "--- $name: ${RES[$name]} in ${INFO[$name]}"
   grep -E "^RESULT|^\[L[0-9]|^L[0-9]|Traceback|Error:|FATAL|Episode step limit|rt_ratio" "$log" | tail -8 | sed 's/^/  /' || true
 }
-CK=/workspace/dex2bench_retarget/cluster/checks
+CK=/workspace/Bench2Dex/ondemand/cluster/checks
 EP0="$RUNS/06_fruit_bowl_loading/ep000"
 
 run_check L1 L1_OK 600 "${ISAAC[@]}" "$PY" $CK/l1_cuda.py

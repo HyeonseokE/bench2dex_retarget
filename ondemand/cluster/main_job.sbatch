@@ -5,8 +5,9 @@
 #
 # In order:
 #   1. preflight  ~/.hf_token must exist (the Hub rate-limits anonymous downloads mid-way)
-#   2. git sync   clone or fast-forward $HOME/b2d/dex2bench_retarget from GitHub
-#   3. setup      Isaac Sim 5.1 SIF, Bench2Dex @ fd90dcc, Isaac Lab v2.3.2 (once; ~1 h the first time)
+#   2. git sync   clone or fast-forward $HOME/b2d/Bench2Dex, the fork HyeonseokE/Bench2Dex (this
+#                 pipeline is its ondemand/ folder; Bench2Dex itself comes with it)
+#   3. setup      Isaac Sim 5.1 SIF, Isaac Lab v2.3.2 (once; ~1 h the first time)
 #   4. fetch      teleop episodes + the assets of the selected tasks (skips what is already there)
 #   5. submit     one array task per (task, episode); each retargets that episode onto every
 #                 other robot until it succeeds, records + renders it like the released data and
@@ -40,7 +41,7 @@ export HOME="${HOME:-$(getent passwd "$(id -un)" | cut -d: -f6)}"
 export USER="${USER:-$(id -un)}"
 echo "=== b2dr-main start: $(date) on $(hostname) ==="
 
-REPO_URL="${REPO_URL:-https://github.com/HyeonseokE/dex2bench_retarget.git}"
+REPO_URL="${REPO_URL:-https://github.com/HyeonseokE/Bench2Dex.git}"   # the fork; this pipeline is its ondemand/
 export TASKS="${TASKS:-06}"          # one task per submission (06 12 42 07 34 60 43 76 08 44 21 27)
 export EPISODES="${EPISODES:-50}"
 MAX_GPUS="${MAX_GPUS:-2}"
@@ -51,22 +52,30 @@ echo "token ok"
 
 echo "=== [2/5] git sync ==="
 WS="$HOME/b2d"
+B="$WS/Bench2Dex"
 mkdir -p "$WS"
 export APPTAINER_CACHEDIR="/tmp/b2d-$USER/apptainer-cache"
 mkdir -p "$APPTAINER_CACHEDIR"
-if [ -d "$WS/dex2bench_retarget/.git" ]; then
-  apptainer exec --bind "$WS" docker://hyeonseoke/lerobot:v1 git -C "$WS/dex2bench_retarget" pull --ff-only \
-    || { echo "FATAL: git pull failed (network, or the checkout diverged). Fix it by hand."; exit 1; }
+LG() { apptainer exec --bind "$WS" docker://hyeonseoke/lerobot:v1 git "$@"; }
+if [ -d "$B/.git" ]; then
+  if [ "$(LG -C "$B" remote get-url origin)" != "$REPO_URL" ]; then
+    # an earlier setup cloned the authors' repo here, detached at fd90dcc: switch it to the fork
+    echo "switching $B to $REPO_URL"
+    LG -C "$B" remote set-url origin "$REPO_URL"
+    LG -C "$B" fetch -q origin && LG -C "$B" checkout -q -B main origin/main
+  else
+    LG -C "$B" pull --ff-only || { echo "FATAL: git pull failed (network, or the checkout diverged). Fix it by hand."; exit 1; }
+  fi
 else
-  apptainer exec --bind "$WS" docker://hyeonseoke/lerobot:v1 git clone "$REPO_URL" "$WS/dex2bench_retarget"
+  LG clone "$REPO_URL" "$B"
 fi
 # shellcheck source=/dev/null
-source "$WS/dex2bench_retarget/cluster/env.sh"
-echo "repo @ $(GIT -C "$REPO_DIR" rev-parse --short HEAD)"
+source "$B/ondemand/cluster/env.sh"
+echo "Bench2Dex fork @ $(GIT -C "$REPO_DIR" rev-parse --short HEAD)"
 
 echo "=== [3/5] setup ==="
 # shellcheck source=/dev/null
-source "$REPO_DIR/cluster/setup.sh"
+source "$CODE_DIR/cluster/setup.sh"
 
 echo "=== [4/5] fetch: tasks [$TASKS] x $EPISODES episodes ==="
 export APPTAINERENV_TASKS="$TASKS" APPTAINERENV_EPISODES="$EPISODES"
@@ -92,10 +101,10 @@ done
 N="$(wc -l < "$WORKLIST")"
 [ "$N" -gt 0 ] || { echo "FATAL: empty worklist"; exit 1; }
 echo "$N items -> $WORKLIST"
-ARRAY="$(sbatch --parsable --array="0-$(( N - 1 ))%$MAX_GPUS" --export=ALL,WORKLIST="$WORKLIST" "$REPO_DIR/cluster/retarget_array.sbatch")"
+ARRAY="$(sbatch --parsable --array="0-$(( N - 1 ))%$MAX_GPUS" --export=ALL,WORKLIST="$WORKLIST" "$CODE_DIR/cluster/retarget_array.sbatch")"
 echo "array job $ARRAY"
 if [ "${UPLOAD:-1}" = "1" ]; then
-  sbatch --dependency="afterany:${ARRAY%%;*}" --export=ALL "$REPO_DIR/cluster/finalize.sbatch"
+  sbatch --dependency="afterany:${ARRAY%%;*}" --export=ALL "$CODE_DIR/cluster/finalize.sbatch"
 fi
 squeue -u "$USER" -o '%.12i %.20j %.10T %.10M %.20E'
 echo "=== b2dr-main done: $(date) ==="

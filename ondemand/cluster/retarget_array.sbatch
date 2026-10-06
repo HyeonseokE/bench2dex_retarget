@@ -16,9 +16,9 @@
 
 set -euo pipefail
 export HOME="${HOME:-$(getent passwd "$(id -un)" | cut -d: -f6)}"
-REPO_DIR="$HOME/b2d/dex2bench_retarget"
+REPO_DIR="$HOME/b2d/Bench2Dex"
 # shellcheck source=/dev/null
-source "$REPO_DIR/cluster/env.sh"
+source "$REPO_DIR/ondemand/cluster/env.sh"
 sync_repo "" "$REPO_DIR"                     # pick up pushes made since the entry point ran
 
 [ -n "${SLURM_ARRAY_TASK_ID:-}" ] || { echo "FATAL: not an array task"; exit 1; }
@@ -30,4 +30,4 @@ echo "=== array $SLURM_ARRAY_TASK_ID: task $TASK episode $EPISODE on $(hostname)
 nvidia-smi --query-gpu=name,memory.used,memory.total --format=csv,noheader || true
 
 # shellcheck source=/dev/null
-source "$REPO_DIR/cluster/retarget_body.sh"
+source "$CODE_DIR/cluster/retarget_body.sh"

@@ -19,7 +19,7 @@ MAX_ATTEMPTS="${MAX_ATTEMPTS:-5}"
 SPIDER_ARGS="${SPIDER_ARGS:-}"
 UPLOAD="${UPLOAD:-1}"
 export APPTAINERENV_HF_NAMESPACE="${HF_NAMESPACE:-}" APPTAINERENV_HF_STAGES="${HF_STAGES:-origin replay}"
-cd "$REPO_DIR"
+cd "$CODE_DIR"
 
 stage() {   # stage LOG TIMEOUT_S script args...
   local log="$1" tmo="$2"; shift 2
