@@ -1,0 +1,763 @@
+<title>Cross-Hand Retarget Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: instrument panel (same convention as the 06 -> Shadow prototype viewer). Header with legend,
+   target-hand tabs, headline tiles, then a 3-column workspace: episode list | 3D viewport + timeline |
+   per-episode metrics and SPIDER runs. Pipeline status cards at the bottom. Stacks on phones. */
+:root {
+  --bg: #f3f4f2;
+  --panel: #fbfbfa;
+  --line: #d9dbd6;
+  --ink: #15171a;
+  --ink-2: #4f5357;
+  --ink-3: #7c8086;
+  --src: #eb6834;        /* source robot (teleop demo hand) */
+  --tgt: #2a78d6;        /* selected target robot */
+  --obj-1: #1baf7a; --obj-2: #eda100; --obj-3: #e87ba4; --obj-4: #4a3aa7; --obj-5: #6b8e23; --obj-6: #8b5a2b;
+  --bad: #c93b3a;
+  --good: #0f7d4b;
+  --sel: #e3ecf8;
+  --viewport: #e7e9e5;
+  --f-display: "IBM Plex Sans Condensed", "Arial Narrow", sans-serif;
+  --f-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121416; --panel: #1a1d20; --line: #2c3035; --ink: #eef0f2; --ink-2: #b4b9bf; --ink-3: #868c93;
+  --src: #d95926; --tgt: #3987e5; --obj-1: #199e70; --obj-2: #c98500; --obj-3: #d55181; --obj-4: #9085e9;
+  --obj-5: #8fb446; --obj-6: #c08552;
+  --bad: #e66767; --good: #3fbf7f; --sel: #1f2c3d; --viewport: #1d2125; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #121416; --panel: #1a1d20; --line: #2c3035; --ink: #eef0f2; --ink-2: #b4b9bf; --ink-3: #868c93;
+  --src: #d95926; --tgt: #3987e5; --obj-1: #199e70; --obj-2: #c98500; --obj-3: #d55181; --obj-4: #9085e9;
+  --obj-5: #8fb446; --obj-6: #c08552;
+  --bad: #e66767; --good: #3fbf7f; --sel: #1f2c3d; --viewport: #1d2125; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 14px; line-height: 1.5; }
+.wrap { padding-inline: 16px; padding-block: 16px 32px; max-width: 1600px; margin: 0 auto; display: grid; gap: 14px; }
+header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+h1 { font-family: var(--f-display); font-weight: 600; font-size: 26px; letter-spacing: .01em; margin: 0; text-wrap: balance; }
+.sub { color: var(--ink-2); margin: 2px 0 0; max-width: 75ch; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--ink-2); }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; min-width: 0; }
+.tile .k { font-family: var(--f-display); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.tile .v { font-family: var(--f-mono); font-size: 22px; font-variant-numeric: tabular-nums; }
+.tile .v small { font-size: 13px; color: var(--ink-2); margin-left: 3px; }
+.tile .n { font-size: 12px; color: var(--ink-2); }
+.tile .v.ok { color: var(--good); } .tile .v.no { color: var(--bad); }
+
+.work { display: grid; grid-template-columns: 250px minmax(0, 1fr) 300px; gap: 14px; align-items: start; }
+@media (max-width: 1150px) { .work { grid-template-columns: minmax(0, 1fr) 290px; } .eplist { grid-column: 1 / -1; max-height: 260px; } }
+@media (max-width: 760px) { .work { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; min-width: 0; }
+.ph { font-family: var(--f-display); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3);
+      padding: 8px 12px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 8px; }
+
+.eplist { max-height: 760px; overflow: auto; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { padding: 5px 8px; text-align: right; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+thead th { position: sticky; top: 0; background: var(--panel); font-weight: 500; color: var(--ink-3); font-size: 12px; border-bottom: 1px solid var(--line); cursor: pointer; }
+tbody td { font-family: var(--f-mono); font-size: 12.5px; border-bottom: 1px solid var(--line); }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: color-mix(in srgb, var(--sel) 60%, transparent); }
+tbody tr.on { background: var(--sel); }
+tbody tr:focus-visible { outline: 2px solid var(--tgt); outline-offset: -2px; }
+td .ok { color: var(--good); } td .no { color: var(--bad); } td .run { color: var(--ink-3); }
+
+.stage { display: grid; gap: 0; }
+.vp { position: relative; aspect-ratio: 16 / 10; background: var(--viewport); border-radius: 6px 6px 0 0; overflow: hidden; max-width: 100%; }
+.vp canvas { display: block; width: 100%; height: 100%; }
+.vp .hud { position: absolute; left: 10px; top: 8px; right: 180px; font-family: var(--f-mono); font-size: 12px; color: var(--ink-2); pointer-events: none; }
+.vp .cams { position: absolute; right: 8px; top: 8px; display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; max-width: 170px; }
+.vp .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink-2); font-size: 13px; background: var(--viewport); }
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 10px; border-top: 1px solid var(--line); }
+button, select { font: inherit; font-size: 13px; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 3px 9px; cursor: pointer; }
+button:hover, select:hover { border-color: var(--ink-3); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--tgt); outline-offset: 1px; }
+.play { width: 34px; }
+#scrub { flex: 1 1 200px; min-width: 120px; accent-color: var(--tgt); }
+.time { font-family: var(--f-mono); font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; min-width: 120px; }
+.toggles { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--ink-2); }
+.toggles label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+.tabs { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; align-self: start; justify-self: start; }
+.tabs button { border: 0; border-radius: 0; padding: 6px 14px; font-family: var(--f-display); font-size: 14px; letter-spacing: .02em; display: inline-flex; gap: 8px; align-items: baseline; }
+.tabs button + button { border-left: 1px solid var(--line); }
+.tabs button .st { font-family: var(--f-mono); font-size: 11px; color: var(--ink-3); }
+.tabs button.on { background: var(--tgt); color: #fff; }
+.tabs button.on .st { color: #fff; opacity: .85; }
+.srcsel { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.srcsel select { max-width: 340px; }
+.runs { display: grid; gap: 6px; padding: 8px 12px 12px; }
+.run { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; cursor: pointer; background: transparent; text-align: left; font: inherit; color: inherit; }
+.run:hover { border-color: var(--ink-3); }
+.run.on { border-color: var(--tgt); background: var(--sel); }
+.run .lbl { font-size: 13px; }
+.run .sc { font-family: var(--f-mono); font-size: 12px; }
+.run .sc.ok { color: var(--good); } .run .sc.no { color: var(--bad); }
+.run .chips { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; }
+.run .note2 { grid-column: 1 / -1; font-size: 12px; color: var(--ink-2); }
+.prog { display: grid; gap: 6px; padding: 8px 10px; border: 1px dashed var(--tgt); border-radius: 4px; font-size: 13px; }
+.prog .pbar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.prog .pbar i { display: block; height: 100%; background: var(--tgt); }
+.prog .row { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--ink-2); font-size: 12px; }
+.prog .warn { color: var(--bad); }
+.prog ul { margin: 0; padding-left: 16px; font-family: var(--f-mono); font-size: 11.5px; color: var(--ink-2); }
+.chip { font-size: 11px; padding: 1px 6px; border-radius: 10px; border: 1px solid var(--line); color: var(--ink-2); }
+.chip.ok { border-color: var(--good); color: var(--good); }
+.chip.no { border-color: var(--bad); color: var(--bad); }
+.tl { border-top: 1px solid var(--line); padding: 6px 10px 10px; }
+.tl canvas { display: block; width: 100%; height: 210px; cursor: pointer; }
+
+.side { display: grid; gap: 14px; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; padding: 10px 12px; font-size: 13px; margin: 0; }
+.kv dt { color: var(--ink-3); }
+.kv dd { margin: 0; text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.segs { padding: 6px 12px 10px; display: grid; gap: 4px; font-size: 13px; }
+.seg { display: grid; grid-template-columns: 44px 1fr auto; gap: 8px; align-items: center; }
+.seg .who { color: var(--ink-3); font-size: 12px; }
+.seg .fr { font-family: var(--f-mono); font-size: 12px; color: var(--ink-2); }
+.note { padding: 10px 12px; font-size: 13px; color: var(--ink-2); display: grid; gap: 6px; }
+.note b { color: var(--ink); font-weight: 600; }
+.chart { padding: 8px 10px 10px; position: relative; }
+.chart canvas { display: block; width: 100%; height: 150px; }
+.pipeline { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+.step { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; font-size: 13px; color: var(--ink-2); }
+.step h3 { margin: 0 0 4px; font-family: var(--f-display); font-size: 15px; font-weight: 600; color: var(--ink); }
+.step .st { font-family: var(--f-display); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+.st.done { color: var(--good); } .st.wait { color: var(--bad); } .st.run { color: var(--tgt); }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1 id="h1">Cross-Hand Retarget Viewer</h1>
+      <p class="sub" id="sub">데이터 불러오는 중…</p>
+    </div>
+    <div class="legend" id="legend"></div>
+  </header>
+
+  <div class="tabs" role="tablist" aria-label="목표 손" id="tabs"></div>
+
+  <section class="tiles" id="tiles" aria-label="요약"></section>
+
+  <section class="work">
+    <div class="panel eplist">
+      <div class="ph"><span>에피소드</span><span id="epcount"></span></div>
+      <table aria-label="에피소드 목록">
+        <thead><tr>
+          <th data-k="name">ep</th><th data-k="frames">frames</th>
+          <th data-k="rc" title="오른손 접촉 손가락 끝 평균 오차 (mm)">R접촉</th>
+          <th data-k="lc" title="왼손 접촉 손가락 끝 평균 오차 (mm)">L접촉</th>
+          <th data-k="p95" title="양손 중 큰 p95 오차 (mm)">p95</th>
+          <th data-k="res" title="SPIDER 결과">결과</th>
+        </tr></thead>
+        <tbody id="eprows"></tbody>
+      </table>
+    </div>
+
+    <div class="panel stage">
+      <div class="vp" id="vp">
+        <canvas id="gl" aria-label="3D 재생 화면"></canvas>
+        <div class="hud" id="hud"></div>
+        <div class="cams">
+          <button data-cam="front">정면</button><button data-cam="top">위</button>
+          <button data-cam="right">오른손</button><button data-cam="left">왼손</button>
+        </div>
+        <div class="loading" id="loading">데이터 불러오는 중…</div>
+      </div>
+      <div class="bar">
+        <button class="play" id="play" aria-label="재생">▶</button>
+        <input type="range" id="scrub" min="0" max="0" value="0" aria-label="프레임">
+        <span class="time" id="time"></span>
+        <select id="speed" aria-label="재생 속도">
+          <option value="0.25">0.25×</option><option value="0.5">0.5×</option>
+          <option value="1" selected>1×</option><option value="2">2×</option>
+        </select>
+      </div>
+      <div class="bar">
+        <label class="srcsel" for="src">재생 소스
+          <select id="src" aria-label="재생 소스"></select>
+        </label>
+        <div class="toggles">
+          <label><input type="checkbox" id="tSrc"> 소스 로봇 겹쳐 보기</label>
+          <label><input type="checkbox" id="tTgt" checked> 목표 로봇</label>
+          <label><input type="checkbox" id="tTips" checked> 손가락 끝·오차</label>
+          <label><input type="checkbox" id="tArm"> 팔 숨기기</label>
+        </div>
+      </div>
+      <div class="tl"><canvas id="tl" aria-label="타임라인: 조작 구간, 접촉, 손가락 끝 오차 또는 성공 조건"></canvas></div>
+    </div>
+
+    <div class="side">
+      <div class="panel">
+        <div class="ph"><span id="epTitle">에피소드</span><span id="epSrc"></span></div>
+        <dl class="kv" id="epKv"></dl>
+        <div class="ph"><span>조작 구간 (소스 데모)</span></div>
+        <div class="segs" id="segs"></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span>목표 손별 손가락 끝 오차 (기구학)</span><span>mm</span></div>
+        <div class="chart"><canvas id="bars" aria-label="목표 손별 평균·접촉·p95 손가락 끝 오차 막대 차트"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span>Isaac Sim 물리 rollout · SPIDER</span><span>guide 0</span></div>
+        <div class="note" id="simIntro"></div>
+        <div class="runs" id="runs"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="pipeline" aria-label="파이프라인 상태" id="pipeline"></section>
+</div>
+
+<script>
+// Any failure shows up in the viewport overlay instead of leaving "불러오는 중…" forever.
+(() => {
+  const show = (msg) => { const el = document.getElementById("loading"); if (el) { el.hidden = false; el.textContent = msg; } };
+  window.addEventListener("error", (e) => show(`오류: ${e.message || (e.target && e.target.src ? e.target.src + " 를 불러오지 못했습니다" : "알 수 없는 오류")}`), true);
+  window.addEventListener("unhandledrejection", (e) => show(`오류: ${e.reason && e.reason.message ? e.reason.message : e.reason}`));
+})();
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(() => {
+const $ = (id) => document.getElementById(id);
+if (typeof THREE === "undefined" || !THREE.OrbitControls) {
+  $("loading").textContent = "3D 라이브러리(three.js)를 불러오지 못했습니다. 네트워크나 브라우저 확장 프로그램이 cdnjs·jsdelivr를 막고 있는지 확인하세요.";
+  return;
+}
+const step = (msg) => { $("loading").hidden = false; $("loading").textContent = msg; };
+const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const FINGERS = ["엄지", "검지", "중지", "약지", "소지"];
+const OBJ_VARS = ["--obj-4", "--obj-1", "--obj-2", "--obj-3", "--obj-5", "--obj-6"];
+const STATE_KO = { running: "진행 중", retrying: "재시도 중", recorded: "성공 · 기록", rendered: "성공 · 렌더",
+  uploaded: "성공 · 업로드", failed_all_attempts: "실패", stage2_failed: "stage 2 실패", render_failed: "렌더 실패" };
+const OK_STATES = new Set(["recorded", "rendered", "uploaded"]);
+
+// float16 -> float32
+const F16 = (() => {
+  const t = new Float32Array(65536);
+  for (let h = 0; h < 65536; h++) {
+    const s = h & 0x8000 ? -1 : 1, e = (h >> 10) & 0x1f, f = h & 0x3ff;
+    t[h] = e === 0 ? s * Math.pow(2, -14) * (f / 1024) : e === 31 ? (f ? NaN : s * Infinity) : s * Math.pow(2, e - 15) * (1 + f / 1024);
+  }
+  return t;
+})();
+function view(buf, d) {
+  const n = d.shape.reduce((a, b) => a * b, 1);
+  if (d.dtype === "float16") { const u = new Uint16Array(buf, d.offset, n), o = new Float32Array(n); for (let i = 0; i < n; i++) o[i] = F16[u[i]]; return o; }
+  if (d.dtype === "int8") return new Int8Array(buf, d.offset, n);
+  return new Float32Array(buf, d.offset, n);
+}
+// binary blobs are shipped base64-encoded as .b64.txt (artifacts don't serve raw binaries)
+async function fetchBlob(path) {
+  const s = atob(await fetch(path).then(r => { if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`); return r.text(); }));
+  const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
+  return u.buffer;
+}
+const cache = {};
+async function loadBin(name) {
+  if (cache[name]) return cache[name];
+  const [meta, buf] = await Promise.all([fetch(`data/${name}.json`).then(r => { if (!r.ok) throw new Error(`data/${name}.json: HTTP ${r.status}`); return r.json(); }), fetchBlob(`data/${name}.b64.txt`)]);
+  const a = {}; for (const k in meta.layout) a[k] = { data: view(buf, meta.layout[k]), shape: meta.layout[k].shape };
+  return (cache[name] = { meta, a });
+}
+
+// ---------- state ----------
+const S = { summary: null, tgt: null, ep: null, kin: null, sim: null, simMeta: null, mode: "kin", frame: 0,
+            playing: false, speed: 1, sortK: "name", sortDir: 1, acc: 0 };
+const epEntry = () => S.summary.episodes.find(e => e.name === S.ep.meta.name);
+const tgtEntry = (e = epEntry()) => e && e.targets[S.tgt];
+const objColor = (i) => css(OBJ_VARS[i % OBJ_VARS.length]);
+const objIndex = (id) => S.summary.objects.findIndex(o => o.id === id);
+const objLabel = (id) => { const o = S.summary.objects.find(o => o.id === id); return o ? o.label : id; };
+const hand = (n) => (S.summary.targets.find(t => t.name === n) || S.summary.source || { label: n }).label;
+
+// ---------- three.js scene ----------
+THREE.Object3D.DefaultUp.set(0, 0, 1);
+const canvas = $("gl");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, 1.6, 0.01, 20);
+const controls = new THREE.OrbitControls(camera, canvas);
+controls.enableDamping = true;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f96, 0.85));
+const sun = new THREE.DirectionalLight(0xffffff, 0.75); sun.position.set(1, -2, 3); scene.add(sun);
+const CAMS = {
+  front: [[0.25, 1.55, 1.55], [0.25, 0.0, 0.78]],
+  top: [[0.25, 0.12, 2.4], [0.25, 0.12, 0.72]],
+  right: [[0.95, 0.75, 1.15], [0.55, 0.05, 0.8]],
+  left: [[-0.45, 0.75, 1.15], [-0.05, 0.05, 0.8]],
+};
+function setCam(k) { const [p, t] = CAMS[k]; camera.position.set(...p); controls.target.set(...t); controls.update(); }
+setCam("front");
+
+let table, grid;
+function buildTable(z) {
+  if (table) scene.remove(table);
+  table = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.85, 0.02), new THREE.MeshStandardMaterial({ color: 0xb9a990, roughness: 0.9 }));
+  table.position.set(0, 0.125, z - 0.01);
+  scene.add(table);
+  if (!grid) { grid = new THREE.GridHelper(4, 40, 0x9aa0a6, 0xc4c8cc); grid.rotation.x = Math.PI / 2; scene.add(grid); }
+}
+
+let meshGeoms = [];
+async function loadMeshes() {
+  const [items, buf] = await Promise.all([fetch("data/meshes.json").then(r => { if (!r.ok) throw new Error(`data/meshes.json: HTTP ${r.status}`); return r.json(); }), fetchBlob("data/meshes.b64.txt")]);
+  meshGeoms = items.map(it => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(buf, it.v_off, it.nv * 3), 3));
+    g.setIndex(new THREE.BufferAttribute(new Uint32Array(buf, it.f_off, it.nf * 3), 1));
+    g.computeVertexNormals();
+    return g;
+  });
+}
+const mats = {};
+function mat(key, color, opacity = 1) {
+  if (!mats[key]) mats[key] = new THREE.MeshStandardMaterial({ color, roughness: 0.6, metalness: 0.1, transparent: opacity < 1, opacity, depthWrite: opacity >= 1, side: THREE.DoubleSide });
+  return mats[key];
+}
+const ARM_RE = /^(L_arm_)?(base|base_link|base_link_inertia|shoulder_link|upper_arm_link|forearm_link|wrist_[123]_link)$/;
+const robots = {};
+function robotGroup(name, spec, material) {
+  const grp = new THREE.Group();
+  const meshes = spec.mesh.map((mi, i) => {
+    const m = new THREE.Mesh(meshGeoms[mi], material);
+    m.userData.arm = ARM_RE.test(spec.link[i]);
+    grp.add(m); return m;
+  });
+  grp.visible = false;
+  scene.add(grp);
+  return (robots[name] = { grp, meshes });
+}
+let objMeshes = [], tipGroup;
+function buildObjects(objects) {
+  objMeshes.forEach(m => scene.remove(m));
+  objMeshes = objects.map(o => {
+    const i = objIndex(o.id);
+    const m = new THREE.Mesh(meshGeoms[o.mesh], mat("obj" + o.id, new THREE.Color(objColor(i))));
+    scene.add(m); return m;
+  });
+}
+function buildTips() {
+  tipGroup = new THREE.Group();
+  const sg = new THREE.SphereGeometry(0.0055, 12, 8);
+  tipGroup.userData.src = [], tipGroup.userData.tgt = [], tipGroup.userData.lines = [];
+  for (let i = 0; i < 10; i++) {
+    const a = new THREE.Mesh(sg, mat("tipS", new THREE.Color(css("--src")))); tipGroup.add(a); tipGroup.userData.src.push(a);
+    const b = new THREE.Mesh(sg, mat("tipT", new THREE.Color(css("--tgt")))); tipGroup.add(b); tipGroup.userData.tgt.push(b);
+    const lg = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+    const l = new THREE.Line(lg, new THREE.LineBasicMaterial({ color: new THREE.Color(css("--bad")) })); tipGroup.add(l); tipGroup.userData.lines.push(l);
+  }
+  scene.add(tipGroup);
+}
+function setPoses(meshes, arr, f, G) {
+  const d = arr.data, base = f * G * 7;
+  for (let i = 0; i < G; i++) {
+    const o = base + i * 7, m = meshes[i];
+    m.position.set(d[o], d[o + 1], d[o + 2]);
+    m.quaternion.set(d[o + 3], d[o + 4], d[o + 5], d[o + 6]).normalize();
+  }
+}
+
+// ---------- frame update ----------
+const nFrames = () => S.mode === "sim" ? S.sim.meta.n : S.ep.meta.n;
+const kinIndexForSim = (i) => Math.min(S.ep.meta.n - 1, Math.round(S.sim.meta.frame_index[i] / S.summary.stride));
+function render() {
+  if (!S.ep || !S.kin) return;
+  const kinF = S.mode === "sim" ? kinIndexForSim(S.frame) : S.frame;
+  const a = S.ep.a, k = S.kin.a, src = robots[S.summary.source.name], tgt = robots[S.tgt];
+  setPoses(src.meshes, a.src_pose, kinF, a.src_pose.shape[1]);
+  if (S.mode === "sim") {
+    setPoses(tgt.meshes, S.sim.a.tgt_pose, S.frame, S.sim.a.tgt_pose.shape[1]);
+    setPoses(objMeshes, S.sim.a.obj_pose, S.frame, objMeshes.length);
+  } else {
+    setPoses(tgt.meshes, k.tgt_pose, kinF, k.tgt_pose.shape[1]);
+    setPoses(objMeshes, a.obj_pose, kinF, objMeshes.length);
+  }
+  const showTips = $("tTips").checked && S.mode === "kin";
+  tipGroup.visible = showTips;
+  if (showTips) {
+    const st = a.src_tips.data, tt = k.tgt_tips.data, c = a.contact.data;
+    for (let i = 0; i < 10; i++) {
+      const o = (kinF * 10 + i) * 3;
+      tipGroup.userData.src[i].position.set(st[o], st[o + 1], st[o + 2]);
+      tipGroup.userData.tgt[i].position.set(tt[o], tt[o + 1], tt[o + 2]);
+      tipGroup.userData.src[i].scale.setScalar(c[kinF * 10 + i] >= 0 ? 1.6 : 1);
+      const p = tipGroup.userData.lines[i].geometry.attributes.position;
+      p.setXYZ(0, st[o], st[o + 1], st[o + 2]); p.setXYZ(1, tt[o], tt[o + 1], tt[o + 2]); p.needsUpdate = true;
+    }
+  }
+  const frameNo = S.mode === "sim" ? S.sim.meta.frame_index[S.frame] : S.ep.meta.frame_index[S.frame];
+  const fps = S.summary.fps;
+  $("time").textContent = `frame ${frameNo} · ${(frameNo / fps).toFixed(2)} s`;
+  $("scrub").value = S.frame;
+  let hud;
+  if (S.mode === "sim") {
+    const e = S.sim.a.err_cm.data, no = S.sim.a.err_cm.shape[1];
+    const parts = S.ep.meta.objects.map((o, i) => `${objLabel(o.id)} ${e[S.frame * no + i].toFixed(1)}`);
+    const ok = S.sim.a.success.data[S.frame] ? "조건 충족" : "조건 미충족";
+    const after = frameNo >= S.epFrames ? " · 데모 종료 후 자세 유지" : "";
+    hud = `Isaac Sim 물리 · ${S.simMeta.label} · ${ok}${after} · 물체 오차 cm: ${parts.join(", ")}`;
+  } else {
+    const e = k.tip_err_mm.data; let mx = 0; for (let i = 0; i < 10; i++) mx = Math.max(mx, e[kinF * 10 + i]);
+    hud = `파랑 = ${hand(S.tgt)} 기구학 retargeting (물리 없음, SPIDER의 참조 궤적) · 주황 점 = 소스 손끝 · 최대 손가락 끝 오차 ${mx.toFixed(1)} mm`;
+  }
+  $("hud").textContent = hud;
+  drawTimeline();
+}
+
+function applyVisibility() {
+  Object.entries(robots).forEach(([n, r]) => {
+    r.grp.visible = n === S.summary.source.name ? $("tSrc").checked : (n === S.tgt && $("tTgt").checked);
+  });
+  const hideArm = $("tArm").checked;
+  Object.values(robots).forEach(r => r.meshes.forEach(m => { if (m.userData.arm) m.visible = !hideArm; }));
+}
+
+// ---------- timeline ----------
+function roundRect(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+function drawTimeline() {
+  const cv = $("tl"), r = cv.getBoundingClientRect(), dpr = Math.min(devicePixelRatio, 2);
+  if (!r.width) return;
+  cv.width = r.width * dpr; cv.height = r.height * dpr;
+  const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, r.width, r.height);
+  const sim = S.mode === "sim";
+  const n = sim ? S.sim.meta.n : S.ep.meta.n;                // timeline spans the shown source
+  const toF = (i) => sim ? S.sim.meta.frame_index[i] : S.ep.meta.frame_index[i];
+  const fMax = Math.max(1, toF(n - 1));
+  const L = 74, W = r.width - L - 6, xf = (frame) => L + (frame / fMax) * W;
+  g.font = `11px ${css("--f-body")}`; g.textBaseline = "middle";
+  const ink3 = css("--ink-3"), line = css("--line");
+  let y = 4;
+  const em = epEntry();
+  const segRow = (label, side) => {
+    g.fillStyle = ink3; g.fillText(label, 0, y + 6);
+    g.fillStyle = line; g.fillRect(L, y + 5, W, 2);
+    for (const s of em.segments[side]) {
+      g.fillStyle = objColor(objIndex(s.obj)); roundRect(g, xf(s.start), y, Math.max(2, xf(s.end) - xf(s.start)), 12, 3); g.fill();
+    }
+    y += 16;
+  };
+  segRow("R 조작", "right"); segRow("L 조작", "left");
+  y += 4;
+  if (!sim) {
+    const c = S.ep.a.contact.data, kn = S.ep.meta.n, step = S.summary.stride;
+    for (let k = 0; k < 10; k++) {
+      g.fillStyle = ink3; g.fillText((k < 5 ? "R " : "L ") + FINGERS[k % 5], 0, y + 3.5);
+      for (let i = 0; i < kn; i++) {
+        const o = c[i * 10 + k]; if (o < 0) continue;
+        g.fillStyle = objColor(objIndex(S.ep.meta.objects[o].id)); g.fillRect(xf(S.ep.meta.frame_index[i]), y, Math.max(1.5, W * step / fMax + 0.5), 6);
+      }
+      y += 8;
+    }
+    y += 6;
+    const top = y, h = r.height - y - 8, e = S.kin.a.tip_err_mm.data;
+    const mx = new Float32Array(kn); let peak = 0;
+    for (let i = 0; i < kn; i++) { let m = 0; for (let k = 0; k < 10; k++) m = Math.max(m, e[i * 10 + k]); mx[i] = m; peak = Math.max(peak, m); }
+    const ymax = Math.max(5, Math.ceil(peak / 5) * 5), yy = (v) => top + h - (v / ymax) * h;
+    g.strokeStyle = line; g.lineWidth = 1;
+    [0, ymax / 2, ymax].forEach(v => { g.beginPath(); g.moveTo(L, yy(v)); g.lineTo(L + W, yy(v)); g.stroke(); g.fillStyle = ink3; g.fillText(`${v} mm`, 0, yy(v)); });
+    g.beginPath(); g.moveTo(xf(0), yy(0));
+    for (let i = 0; i < kn; i++) g.lineTo(xf(S.ep.meta.frame_index[i]), yy(mx[i]));
+    g.lineTo(xf(S.ep.meta.frame_index[kn - 1]), yy(0)); g.closePath();
+    g.fillStyle = css("--tgt") + "33"; g.fill();
+    g.beginPath(); for (let i = 0; i < kn; i++) (i ? g.lineTo : g.moveTo).call(g, xf(S.ep.meta.frame_index[i]), yy(mx[i]));
+    g.strokeStyle = css("--tgt"); g.lineWidth = 1.5; g.stroke();
+    g.fillStyle = ink3; g.fillText("최대 손가락 끝 오차", L + 4, top + 6);
+  } else {
+    // condition rows (green = holds) + overall success row
+    const labels = S.summary.conditions, cond = S.sim.a.cond, suc = S.sim.a.success.data, good = css("--good"), bad = css("--bad");
+    const rows = cond ? labels.length : 0, rh = 9;
+    const bw = Math.max(1.2, W / n + 0.4);
+    for (let c = 0; c < rows; c++) {
+      g.fillStyle = ink3; g.fillText(labels[c].length > 11 ? labels[c].slice(0, 11) + "…" : labels[c], 0, y + 3.5);
+      for (let i = 0; i < n; i++) { const v = cond.data[i * rows + c]; g.fillStyle = v === 1 ? good : v === 0 ? bad + "55" : line; g.fillRect(xf(toF(i)), y, bw, 6); }
+      y += rh;
+    }
+    g.fillStyle = ink3; g.fillText("전체 성공", 0, y + 4);
+    for (let i = 0; i < n; i++) { g.fillStyle = suc[i] ? good : line; g.fillRect(xf(toF(i)), y, bw, 8); }
+    if (S.simMeta.stable_frame != null) { g.strokeStyle = good; g.lineWidth = 2; g.beginPath(); g.moveTo(xf(S.simMeta.stable_frame), y - 2); g.lineTo(xf(S.simMeta.stable_frame), y + 10); g.stroke(); }
+    y += 16;
+    // demo end marker
+    g.setLineDash([3, 3]); g.strokeStyle = ink3; g.beginPath(); g.moveTo(xf(S.epFrames - 1), 0); g.lineTo(xf(S.epFrames - 1), r.height); g.stroke(); g.setLineDash([]);
+    // object error lines
+    const top = y, h = r.height - y - 8, e = S.sim.a.err_cm.data, no = S.sim.a.err_cm.shape[1];
+    let peak = 0; for (let i = 0; i < e.length; i++) peak = Math.max(peak, e[i]);
+    const ymax = Math.max(5, Math.ceil(peak / 5) * 5), yy = (v) => top + h - (Math.min(v, ymax) / ymax) * h;
+    g.strokeStyle = line; g.lineWidth = 1;
+    [0, ymax].forEach(v => { g.beginPath(); g.moveTo(L, yy(v)); g.lineTo(L + W, yy(v)); g.stroke(); g.fillStyle = ink3; g.fillText(`${v} cm`, 0, yy(v)); });
+    for (let j = 0; j < no; j++) {
+      g.beginPath(); for (let i = 0; i < n; i++) (i ? g.lineTo : g.moveTo).call(g, xf(toF(i)), yy(e[i * no + j]));
+      g.strokeStyle = objColor(objIndex(S.ep.meta.objects[j].id)); g.lineWidth = 1.4; g.stroke();
+    }
+    g.fillStyle = ink3; g.fillText("물체 위치 오차 (데모 대비)", L + 4, top + 6);
+  }
+  const ph = toF(S.frame);
+  g.strokeStyle = css("--ink"); g.lineWidth = 1.5; g.beginPath(); g.moveTo(xf(ph), 0); g.lineTo(xf(ph), r.height); g.stroke();
+  cv.onclick = (ev) => {
+    const b = cv.getBoundingClientRect(), frame = ((ev.clientX - b.left - L) / W) * fMax;
+    if (frame < 0) return;
+    let best = 0; for (let i = 0; i < n; i++) if (Math.abs(toF(i) - frame) < Math.abs(toF(best) - frame)) best = i;
+    S.frame = best; render();
+  };
+}
+
+// ---------- side panels ----------
+const fmt = (v, d = 1) => v == null ? "—" : v.toFixed(d);
+function epStats(e) {
+  const t = e.targets[S.tgt]; if (!t) return { rc: null, lc: null, p95: null };
+  return { rc: t.kin.right.tip_err_contact_mm, lc: t.kin.left.tip_err_contact_mm, p95: Math.max(t.kin.right.tip_err_p95_mm, t.kin.left.tip_err_p95_mm) };
+}
+function runResult(t) {
+  if (!t) return { k: "run", s: "—" };
+  if (OK_STATES.has(t.state)) return { k: "ok", s: "성공" };
+  if (t.state === "failed_all_attempts" || t.state === "stage2_failed") return { k: "no", s: "실패" };
+  const p = t.progress && !t.progress.done ? t.progress : null;
+  return { k: "run", s: p ? `${p.frame}/${p.T}` : t.runs.length ? `시도 ${t.runs.length}` : "진행" };
+}
+function renderHeader() {
+  const s = S.summary;
+  $("h1").textContent = `${s.task} · ${s.source.label} → ${s.targets.map(t => t.label).join(" / ")}`;
+  $("sub").textContent = `Bench2Dex ${s.task}. ${s.description} 소스 텔레옵 데모를 목표 손으로 기구학 retargeting한 뒤 SPIDER(샘플링 기반 MPPI)로 Bench2Dex 물리에서 물체 궤적을 재현합니다.`;
+  $("legend").innerHTML = `<span><i class="sw" style="background:var(--src)"></i>소스 · ${s.source.label}</span>
+    <span><i class="sw" style="background:var(--tgt)"></i>목표 · ${hand(S.tgt)}</span>` +
+    s.objects.map((o, i) => `<span><i class="sw" style="background:${objColor(i)}"></i>${o.label}</span>`).join("");
+  $("tabs").innerHTML = s.targets.map(t => {
+    const ok = s.episodes.filter(e => e.targets[t.name] && OK_STATES.has(e.targets[t.name].state)).length;
+    const r = runResult(s.episodes[0].targets[t.name]);
+    return `<button role="tab" data-t="${t.name}" class="${t.name === S.tgt ? "on" : ""}" aria-selected="${t.name === S.tgt}">${t.label}<span class="st">성공 ${ok}/${s.episodes.length}${r.k === "run" ? ` · ${r.s}` : ""}</span></button>`;
+  }).join("");
+  document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => setTarget(b.dataset.t));
+}
+function renderTiles() {
+  const eps = S.summary.episodes.filter(e => e.targets[S.tgt]);
+  const mean = (a) => a.length ? a.reduce((s, v) => s + v, 0) / a.length : null;
+  const ts = eps.map(e => e.targets[S.tgt]);
+  const meanAll = mean(ts.map(t => (t.kin.right.tip_err_mean_mm + t.kin.left.tip_err_mean_mm) / 2));
+  const contact = mean(ts.map(t => ((t.kin.right.tip_err_contact_mm ?? 0) + (t.kin.left.tip_err_contact_mm ?? 0)) / 2));
+  const p95 = eps.length ? Math.max(...eps.map(e => epStats(e).p95)) : null;
+  const ok = ts.filter(t => OK_STATES.has(t.state)).length, fail = ts.filter(t => runResult(t).k === "no").length;
+  const pend = ts.length - ok - fail, nRuns = ts.reduce((s, t) => s + t.runs.length, 0);
+  $("tiles").innerHTML = `
+    <div class="tile"><div class="k">에피소드</div><div class="v">${eps.length}</div><div class="n">${hand(S.summary.source.name)} 원본 텔레옵 데모</div></div>
+    <div class="tile"><div class="k">SPIDER 성공</div><div class="v ${ok ? "ok" : fail ? "no" : ""}">${ok}<small>/ ${eps.length}</small></div><div class="n">실패 ${fail} · 진행 중 ${pend} · 시도 ${nRuns}회 완료</div></div>
+    <div class="tile"><div class="k">손가락 끝 평균 오차</div><div class="v">${fmt(meanAll, 2)}<small>mm</small></div><div class="n">${hand(S.tgt)} FK vs 소스 FK, 전체 프레임</div></div>
+    <div class="tile"><div class="k">접촉 중 평균 오차</div><div class="v">${fmt(contact, 2)}<small>mm</small></div><div class="n">물체에서 2 cm 이내인 손가락 끝만</div></div>
+    <div class="tile"><div class="k">최악 p95 오차</div><div class="v">${fmt(p95, 1)}<small>mm</small></div><div class="n">에피소드 중 가장 큰 값</div></div>`;
+}
+function renderList() {
+  const rows = S.summary.episodes.map(e => ({ e, name: e.name, frames: e.frames, ...epStats(e), r: runResult(e.targets[S.tgt]) }))
+    .map(r => ({ ...r, res: r.r.k }));
+  rows.sort((a, b) => ((a[S.sortK] ?? -1) > (b[S.sortK] ?? -1) ? 1 : (a[S.sortK] ?? -1) < (b[S.sortK] ?? -1) ? -1 : 0) * S.sortDir);
+  $("eprows").innerHTML = rows.map(r => `<tr tabindex="0" data-ep="${r.name}" class="${S.ep && S.ep.meta.name === r.name ? "on" : ""}">
+    <td>${r.name}</td><td>${r.frames}</td><td>${fmt(r.rc, 2)}</td><td>${fmt(r.lc, 2)}</td><td>${fmt(r.p95, 1)}</td>
+    <td><span class="${r.r.k}">${r.r.s}</span></td></tr>`).join("");
+  $("epcount").textContent = `${rows.length}개`;
+}
+function renderEpPanel() {
+  const e = epEntry(), t = tgtEntry(e);
+  $("epTitle").textContent = `${e.name} → ${hand(S.tgt)}`; $("epSrc").textContent = e.source_file;
+  const kr = t ? t.kin_report : {};
+  $("epKv").innerHTML = `
+    <dt>프레임 (20 fps)</dt><dd>${e.frames}</dd>
+    <dt>테이블 높이</dt><dd>${e.table_z.toFixed(3)} m</dd>
+    <dt>R 평균 / 접촉 / p95</dt><dd>${t ? `${fmt(t.kin.right.tip_err_mean_mm, 2)} / ${fmt(t.kin.right.tip_err_contact_mm, 2)} / ${fmt(t.kin.right.tip_err_p95_mm, 1)}` : "—"} mm</dd>
+    <dt>L 평균 / 접촉 / p95</dt><dd>${t ? `${fmt(t.kin.left.tip_err_mean_mm, 2)} / ${fmt(t.kin.left.tip_err_contact_mm, 2)} / ${fmt(t.kin.left.tip_err_p95_mm, 1)}` : "—"} mm</dd>
+    <dt>접촉 프레임 R / L</dt><dd>${t ? `${t.kin.right.contact_frames} / ${t.kin.left.contact_frames}` : "—"}</dd>
+    <dt>최대 관절 점프</dt><dd>${kr.q_jump_max_rad != null ? kr.q_jump_max_rad.toFixed(3) + " rad" : "—"}</dd>
+    <dt>상태</dt><dd>${t ? (STATE_KO[t.state] || t.state) : "—"}</dd>`;
+  const segs = [...e.segments.left.map(s => ({ ...s, who: "왼손" })), ...e.segments.right.map(s => ({ ...s, who: "오른손" }))].sort((a, b) => a.start - b.start);
+  $("segs").innerHTML = segs.map(s => `<div class="seg"><span class="who">${s.who}</span>
+    <span><i class="sw" style="background:${objColor(objIndex(s.obj))}"></i>${objLabel(s.obj)}</span>
+    <span class="fr">${s.start}–${s.end}</span></div>`).join("");
+  fillSources(); renderRuns(); drawBars();
+}
+function fillSources() {
+  const t = tgtEntry(), items = t ? t.runs : [];
+  $("src").innerHTML = `<option value="kin">참조 애니메이션 · 기구학 FK (물리 없음)</option>` + items.map(r =>
+    `<option value="${r.file}">${r.label} — ${r.task_success ? "성공" : "실패"}</option>`).join("");
+  $("src").value = S.simMeta && items.some(r => r.file === S.simMeta.file) ? S.simMeta.file : "kin";
+}
+function renderRuns() {
+  const t = tgtEntry();
+  $("simIntro").innerHTML = `${hand(S.tgt)}를 Isaac Sim(Bench2Dex 물리 그대로)에서 실행한 SPIDER 확정 궤적입니다. 판정은 Bench2Dex <b>MetricTracker stable success</b>(모든 조건 0.5초 유지)이고, 칩은 rollout 마지막 프레임의 하위 조건입니다. 실패하면 시드와 샘플 수를 늘려 최대 5회 다시 시도합니다.`;
+  const p = t && t.progress && !t.progress.done ? t.progress : null;
+  let live = "";
+  if (p) {
+    const pct = Math.min(100, 100 * p.frame / p.T), objs = S.ep.meta.objects;
+    const err = p.obj_err_cm ? p.obj_err_cm.map((v, i) => `<span class="chip ${v > 3 ? "no" : ""}">${objs[i] ? objLabel(objs[i].id) : i} ${v.toFixed(1)} cm</span>`).join("") : "";
+    const hold = p.hold ? `<div class="row ${p.hold.mean_cm > 2 ? "warn" : ""}">hold pass 손끝 이탈: 평균 ${p.hold.mean_cm.toFixed(2)} cm · p95 ${p.hold.p95_cm.toFixed(2)} cm · 최악 프레임 ${p.hold.worst_frame}${p.hold.mean_cm > 2 ? " (비정상: 참조 궤적이 손상됐을 수 있음)" : ""}</div>` : "";
+    const drops = p.drops.slice(-6).map(d => `<li>frame ${d.frame}: ${objLabel(d.obj)} 놓침 → ${d.back}로 되감기 (재시도 ${d.retry}/${d.max})</li>`).join("");
+    live = `<div class="prog"><b>진행 중 · ${p.tag} · frame ${p.frame}/${p.T}${p.seconds ? ` · ${Math.round(p.seconds / 60)}분` : ""}</b>
+      <div class="pbar"><i style="width:${pct}%"></i></div>
+      <div class="row">물체 오차 ${err}</div>${hold}
+      ${p.drops.length ? `<div class="row">물체 놓침·되감기 ${p.drops.length}회 (최근 ${Math.min(6, p.drops.length)}개)</div><ul>${drops}</ul>` : `<div class="row">물체 놓침 없음</div>`}</div>`;
+  }
+  if (!t || !t.runs.length) {
+    $("runs").innerHTML = live || `<div class="note">아직 끝난 SPIDER 시도가 없습니다. 상태: <b>${t ? (STATE_KO[t.state] || t.state) : "—"}</b>.</div>`;
+    return;
+  }
+  $("runs").innerHTML = live + t.runs.map(r => `<button class="run ${S.simMeta && S.simMeta.file === r.file ? "on" : ""}" data-file="${r.file}">
+      <span class="lbl">${r.label}</span><span class="sc ${r.task_success ? "ok" : "no"}">${r.task_success ? "성공 ✓" : "실패"} · ${r.score}/${r.n_conditions}</span>
+      <span class="chips">${Object.entries(r.conditions).map(([k, v]) => `<span class="chip ${v ? "ok" : "no"}">${v ? "✓" : "✗"} ${k}</span>`).join("")}</span>
+      <span class="note2">${[r.minutes != null ? `${r.minutes}분` : "", r.stable_frame != null ? `안정 성공 프레임 ${r.stable_frame}` : "안정 성공 없음", r.note].filter(Boolean).join(" · ")}</span>
+    </button>`).join("");
+  document.querySelectorAll("#runs .run").forEach(b => b.onclick = () => { $("src").value = b.dataset.file; setSource(b.dataset.file); });
+}
+function renderPipeline() {
+  const ts = S.summary.episodes.map(e => e.targets[S.tgt]).filter(Boolean);
+  const nRun = ts.reduce((s, t) => s + t.runs.length, 0), ok = ts.filter(t => OK_STATES.has(t.state)).length;
+  const rendered = ts.filter(t => t.state === "rendered" || t.state === "uploaded").length;
+  const card = (st, cls, title, body) => `<div class="step"><span class="st ${cls}">${st}</span><h3>${title}</h3>${body}</div>`;
+  $("pipeline").innerHTML =
+    card("완료", "done", "Stage 1 · Reference", "소스 로봇을 USD 그대로 운동학 재생. 물체 body pose, 손끝·손목·플랜지, 손끝-표면 접촉(2 cm), 손별 조작 구간 추출.") +
+    card(ts.length ? "완료" : "대기", ts.length ? "done" : "wait", "Stage 2 · 기구학 IK", "목표 로봇 팔+손 전체 IK. 손끝 k → 소스 손끝 k, 접촉 손끝 가중치 10, 나머지 2, 플랜지 자세는 약하게 유지. 프레임 순서대로 warm-start.") +
+    card(nRun ? `${nRun}회 완료` : "진행 중", nRun ? "done" : "run", "Stage 3 · SPIDER", "hold pass 후 MPPI 1024 샘플, horizon 30, 5프레임씩 확정. 가상 접촉 스프링은 반복마다 0으로 감쇠. 물체를 놓치면 10~20프레임 되돌아가 재계획.") +
+    card(ok ? `성공 ${ok}` : "대기", ok ? "done" : "wait", "Stage 4 · Bench2Dex 기록", "확정 실행의 매 물리 스텝 상태를 Bench2Dex HDF5로 기록. 재시뮬레이션 없이 MetricTracker로 판정, 성공만 데이터셋에 남김.") +
+    card(rendered ? `렌더 ${rendered}` : "대기", rendered ? "done" : "wait", "Stage 5 · 렌더", "replay.py --restore-generalization으로 카메라 6대 RGB, TacMap, occupancy·box 라벨 렌더 (공개 replay 데이터와 같은 형식).");
+}
+
+// ---------- bar chart: kinematic error per target for this episode ----------
+function drawBars() {
+  const cv = $("bars"), r = cv.getBoundingClientRect(), dpr = Math.min(devicePixelRatio, 2);
+  if (!r.width) return;
+  cv.width = r.width * dpr; cv.height = r.height * dpr;
+  const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, r.width, r.height);
+  const e = epEntry(), tg = S.summary.targets.filter(t => e.targets[t.name]);
+  const series = [["평균", "tip_err_mean_mm"], ["접촉", "tip_err_contact_mm"], ["p95", "tip_err_p95_mm"]];
+  const val = (t, key) => Math.max(e.targets[t].kin.right[key] ?? 0, e.targets[t].kin.left[key] ?? 0);
+  const ymax = Math.max(1, Math.ceil(Math.max(...tg.flatMap(t => series.map(s => val(t.name, s[1])))) / 2) * 2);
+  const L = 30, B = 30, W = r.width - L - 4, H = r.height - B - 6, yy = (v) => 6 + H - (v / ymax) * H;
+  g.font = `10px ${css("--f-mono")}`; g.fillStyle = css("--ink-3"); g.strokeStyle = css("--line"); g.textBaseline = "middle";
+  [0, ymax / 2, ymax].forEach(v => { g.beginPath(); g.moveTo(L, yy(v)); g.lineTo(L + W, yy(v)); g.stroke(); g.fillStyle = css("--ink-3"); g.fillText(String(v), 0, yy(v)); });
+  const gw = W / Math.max(1, tg.length), bw = Math.min(18, (gw - 12) / 3);
+  tg.forEach((t, i) => {
+    const x0 = L + i * gw + (gw - 3 * bw - 4) / 2;
+    series.forEach((s, j) => {
+      const v = val(t.name, s[1]), y0 = yy(v);
+      g.fillStyle = t.name === S.tgt ? css("--tgt") : css("--ink-3");
+      g.globalAlpha = [1, 0.7, 0.45][j];
+      roundRect(g, x0 + j * (bw + 2), y0, bw, yy(0) - y0, Math.min(2, bw / 2)); g.fill();
+      g.globalAlpha = 1;
+    });
+    g.fillStyle = t.name === S.tgt ? css("--ink") : css("--ink-3"); g.textAlign = "center"; g.textBaseline = "top";
+    g.font = `11px ${css("--f-body")}`; g.fillText(t.label.replace("Inspire ", ""), L + i * gw + gw / 2, H + 10);
+    g.font = `10px ${css("--f-mono")}`; g.textAlign = "left"; g.textBaseline = "middle";
+  });
+  g.fillStyle = css("--ink-3"); g.textAlign = "right"; g.fillText("막대: 평균 · 접촉 · p95 (좌우 손 중 큰 값)", r.width - 2, 8); g.textAlign = "left";
+}
+
+// ---------- selection & controls ----------
+async function selectEp(name) {
+  $("loading").hidden = false; $("loading").textContent = `${name} 불러오는 중…`;
+  S.ep = await loadBin(name);
+  S.epFrames = epEntry().frames;
+  buildTable(S.ep.meta.table_z);
+  buildObjects(S.ep.meta.objects);
+  await loadTargetData();
+  try { localStorage.setItem("xrv-ep", name); } catch (e) {}
+}
+async function loadTargetData() {
+  const t = tgtEntry();
+  if (!t) { $("loading").hidden = false; $("loading").textContent = `${S.ep.meta.name}에는 ${hand(S.tgt)} 결과가 없습니다.`; return; }
+  S.kin = await loadBin(t.kin_file);
+  S.mode = "kin"; S.sim = null; S.simMeta = null; S.frame = 0;
+  const best = t.runs.find(r => r.task_success) || t.runs[t.runs.length - 1];
+  renderList(); renderEpPanel(); applyVisibility();
+  if (best) { $("src").value = best.file; await setSource(best.file); }
+  else { $("scrub").max = nFrames() - 1; render(); }
+  $("loading").hidden = true;
+}
+async function setTarget(name) {
+  S.tgt = name;
+  try { localStorage.setItem("xrv-tgt", name); } catch (e) {}
+  renderHeader(); renderTiles(); renderPipeline();
+  if (S.ep) { $("loading").hidden = false; $("loading").textContent = "불러오는 중…"; await loadTargetData(); }
+}
+async function setSource(v) {
+  const prevKin = S.mode === "sim" ? kinIndexForSim(S.frame) : S.frame;
+  if (v === "kin") {
+    S.mode = "kin"; S.sim = null; S.simMeta = null; S.frame = prevKin;
+  } else {
+    $("loading").hidden = false; $("loading").textContent = "rollout 불러오는 중…";
+    S.simMeta = tgtEntry().runs.find(r => r.file === v);
+    S.sim = await loadBin(v);
+    S.mode = "sim"; S.frame = 0;
+    $("loading").hidden = true;
+  }
+  $("scrub").max = nFrames() - 1;
+  renderRuns(); applyVisibility(); render();
+}
+$("src").onchange = (e) => setSource(e.target.value);
+$("play").onclick = () => { S.playing = !S.playing; $("play").textContent = S.playing ? "❚❚" : "▶"; $("play").setAttribute("aria-label", S.playing ? "일시정지" : "재생"); };
+$("scrub").oninput = (e) => { S.frame = +e.target.value; render(); };
+$("speed").onchange = (e) => { S.speed = +e.target.value; };
+["tSrc", "tTgt", "tTips", "tArm"].forEach(id => $(id).onchange = () => { applyVisibility(); render(); });
+document.querySelectorAll("[data-cam]").forEach(b => b.onclick = () => setCam(b.dataset.cam));
+$("eprows").addEventListener("click", (ev) => { const tr = ev.target.closest("tr"); if (tr) selectEp(tr.dataset.ep); });
+$("eprows").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { const tr = ev.target.closest("tr"); if (tr) selectEp(tr.dataset.ep); } });
+document.querySelectorAll("thead th").forEach(th => th.onclick = () => {
+  const k = th.dataset.k; S.sortDir = S.sortK === k ? -S.sortDir : (k === "name" ? 1 : -1); S.sortK = k; renderList();
+});
+document.addEventListener("keydown", (ev) => {
+  if (ev.target.matches("input, select, textarea") || !S.ep) return;
+  if (ev.key === " ") { ev.preventDefault(); $("play").click(); }
+  if (ev.key === "ArrowRight") { S.frame = Math.min(nFrames() - 1, S.frame + 1); render(); }
+  if (ev.key === "ArrowLeft") { S.frame = Math.max(0, S.frame - 1); render(); }
+});
+
+// ---------- loop ----------
+function resize() {
+  const r = canvas.getBoundingClientRect();
+  renderer.setSize(r.width, r.height, false); camera.aspect = r.width / r.height; camera.updateProjectionMatrix();
+}
+new ResizeObserver(() => { resize(); if (S.ep && S.kin) { drawTimeline(); drawBars(); } }).observe($("vp"));
+let last = performance.now();
+function loop(now) {
+  const dt = (now - last) / 1000; last = now;
+  if (S.playing && S.ep && S.kin) {
+    const fps = S.mode === "sim" ? S.summary.fps : S.summary.fps / S.summary.stride;
+    S.acc += dt * fps * S.speed;
+    if (S.acc >= 1) { const k = Math.floor(S.acc); S.acc -= k; S.frame = (S.frame + k) % nFrames(); render(); }
+  }
+  controls.update(); renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+}
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (S.ep && S.kin) { drawTimeline(); drawBars(); } });
+
+(async () => {
+  try {
+    step("1/3 요약 데이터 불러오는 중…");
+    S.summary = await fetch("data/summary.json").then(r => { if (!r.ok) throw new Error(`data/summary.json: HTTP ${r.status}`); return r.json(); });
+    step("2/3 로봇·물체 메시 불러오는 중… (약 4.6 MB)");
+    await loadMeshes();
+    step("3/3 에피소드 불러오는 중…");
+    const s = S.summary;
+    robotGroup(s.source.name, s.geoms[s.source.name], mat("src", new THREE.Color(css("--src")), 0.45));
+    s.targets.forEach(t => robotGroup(t.name, s.geoms[t.name], mat("tgt", new THREE.Color(css("--tgt")))));
+    buildTips();
+    let t0 = s.targets[0].name; try { t0 = localStorage.getItem("xrv-tgt") || t0; } catch (e) {}
+    if (!s.targets.some(t => t.name === t0)) t0 = s.targets[0].name;
+    S.tgt = t0;
+    renderHeader(); renderTiles(); renderPipeline();
+    let first = s.episodes[0].name; try { first = localStorage.getItem("xrv-ep") || first; } catch (e) {}
+    if (!s.episodes.some(e => e.name === first)) first = s.episodes[0].name;
+    resize();
+    await selectEp(first);
+    requestAnimationFrame(loop);
+  } catch (err) {
+    $("loading").hidden = false;
+    $("loading").textContent = "데이터를 불러오지 못했습니다: " + err.message;
+  }
+})();
+})();
+</script>

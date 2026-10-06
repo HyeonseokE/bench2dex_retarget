@@ -8,6 +8,7 @@ inside our own modules), never in the authors' code.
 |---|---|
 | `retarget/` | SPIDER cross-embodiment retargeting library ([README](retarget/README.md)) |
 | `tools/retarget/` | retargeting entry points (stage1–5, run_target, HF upload, audit) |
+| `tools/retarget/viewer/` | web viewer of retarget results (`build_viewer.py` -> `results/viewer/<scene>/`, three.js page); `tools/retarget/kin_replay.py`: physics replay of the stage-2 kinematic path |
 | `ondemand/` | SLURM jobs for the pro6000 cluster ([README](ondemand/README.md)) |
 | `policy/MyPolicy/` | own policy, in the authors' plugin location (`policy.<name>.deploy_policy`) |
 | `tools/eval/` | eval helpers: `act_shared_gpu.sh` (wraps `policy/ACT/eval_double_env.sh`), `summarize_eval.py` |

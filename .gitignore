@@ -99,3 +99,4 @@ docs/
 
 # Retargeting outputs (references, traces, rollouts, HDF5, videos, logs); numbers live in experiments/
 /results/
+/results_v2/
