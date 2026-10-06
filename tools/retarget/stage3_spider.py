@@ -50,6 +50,8 @@ ap.add_argument("--iters", type=int, default=5)
 ap.add_argument("--sigma", type=float, default=0.5)
 ap.add_argument("--guide_gain", type=float, default=300.0, help="N/m, contact spring at the first iteration")
 ap.add_argument("--squeeze", type=float, default=0.02, help="m; contact targets moved this far into the body")
+ap.add_argument("--retry_mode", choices=["schedule", "legacy"], default="schedule",
+                help="schedule: per segment 10,10,12..20 frames back; legacy: the prototype's 2 commits back, 3 per frame")
 ap.add_argument("--back_frames", type=int, default=10, help="first backtrack distance (frames), tried twice")
 ap.add_argument("--back_max", type=int, default=20, help="largest backtrack distance (frames), +2 per further retry")
 ap.add_argument("--gate_look", type=int, default=26, help="optimise only when manipulation is this many frames ahead")
@@ -238,6 +240,28 @@ def main():
         if active and prev_len > 0:
             e_now, e_prev = rec["err"][-1], rec["err"][prev_len - 1]
             dropped = [o for o in active if e_now[o] > 0.04 and e_now[o] - e_prev[o] > args.drop_jump]
+            if dropped and args.retry_mode == "legacy":
+                # the 06 prototype's rule (its first 20 episodes: 14 success): go back 2 commits, up to 3 retries
+                # per restart frame, then carry on; a later drop restarts from a new frame with a new budget
+                back = max(len(history) - 2, 0)
+                key = history[back][0]["frame"]
+                if retries.get(key, 0) < 3:
+                    retries[key] = level = retries.get(key, 0) + 1
+                    snap, n_keep, nominal, tstate = history[back]
+                    nominal = nominal.clone()
+                    del history[back:]
+                    del fhist[[i for i, x in enumerate(fhist) if x[0]["frame"] <= key][-1] + 1:]
+                    for kk in rec:
+                        del rec[kk][n_keep:]
+                    del trace[n_keep:]
+                    trace[-1]["cmd"] = None
+                    tracker.load(tstate)
+                    env.restore(snap)
+                    level_until = key + 3 * S + H
+                    print(f"  drop of {[env.obj_ids[x] for x in dropped]} at frame {fa}: back to {key}, "
+                          f"retry {level}/3 with {args.iters * (1 + level)} iterations", flush=True)
+                    continue
+                dropped = []
             if dropped:
                 o = dropped[0]
                 seg = fa                                   # start of this object's manipulation segment
