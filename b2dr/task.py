@@ -105,10 +105,11 @@ class Episode:
     def table_heights(self, scene: Scene):
         """Bench2Dex's TableHeights for this episode (generalization shifts the table, not the robot)."""
         paths.use_bench2dex()
-        from build.scene_builder import resolve_table_spec
-        from build.table_geometry import resolve_table_geometry, resolve_table_heights
+        from build.table_geometry import resolve_table_geometry, resolve_table_heights  # no Isaac imports
 
-        size, nominal_z, _ = resolve_table_spec(scene.spec)
+        t = scene.spec.get("table") or {}            # build.scene_builder.resolve_table_spec (imports Isaac)
+        size = tuple(float(v) for v in t.get("size", [2.2, 1.1, 0.04]))
+        nominal_z = float(t.get("height", 0.75))
         h = resolve_table_heights(nominal_z, self.sample, generalization_enabled=True)
         return size, h, resolve_table_geometry(size, table_z=h.table_z)
 

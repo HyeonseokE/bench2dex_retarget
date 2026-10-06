@@ -21,8 +21,8 @@ Bench2Dex teleop 데모를 **소스 손에서 나머지 UR5 손 4종으로** 옮
 |---|---|---|---|
 | 1 | `scripts/stage1_reference.py` | 소스 로봇으로 데모를 **운동학적으로 재생**: 물체 바디 pose, 소스 손끝·손목·플랜지, 손끝-표면 접촉(2 cm), 손별 조작 바디 | `b2dr_runs/<task>/epNNN/reference.npz/.json` |
 | 2 | `scripts/stage2_kinematic.py` | 목표 로봇 전신 IK (손끝 k → 소스 손끝 k), 프레임 순서대로 warm-start | `…/<robot>/kinematic.npz` |
-| 3 | `scripts/stage3_spider.py` | hold pass 후 SPIDER 최적화. **계획만 저장**: 초기 상태 + 매 스텝 실행할 관절 목표(`cmd`) | `…/<robot>/spider.json`, `spider_rollout.npz` |
-| 4 | `scripts/stage4_record.py` | 새 단일 env에서 계획을 **처음부터 끊김 없이 재실행**하며 Bench2Dex DataCollector와 똑같이 기록 (state reader, Convention A 액션, box3d, MetricTracker 매 물리 스텝, HDF5EpisodeWriter). 판정 = MetricTracker stable success | `b2dr_runs/dataset/<robot>/<scene>/origin-generalization/episode_NNNNNN.hdf5` (성공만) |
+| 3 | `scripts/stage3_spider.py` | hold pass 후 SPIDER 최적화. 확정된 실행(env 0)의 **매 물리 스텝 상태**와 매 스텝 관절 목표를 저장(샘플은 저장 안 함, backtracking 시 함께 되감음) | `…/<robot>/spider.json`, `spider_trace.pkl.gz` |
+| 4 | `scripts/stage4_record.py` | 상태 기록을 Bench2Dex DataCollector와 똑같이 기록 (Convention A 액션, box3d, MetricTracker 매 물리 스텝, HDF5EpisodeWriter). **재시뮬레이션 없음**(순수 Python). 판정 = MetricTracker stable success | `b2dr_runs/dataset/<robot>/<scene>/origin-generalization/episode_NNNNNN.hdf5` (성공만) |
 | 5 | `scripts/stage5_render.sh` | Bench2Dex `replay.py --restore-generalization --enable-rgb --enable-tactile` (공개 replay 데이터와 같은 `restored` 모드) + GT 라벨(occupancy, box3d/box2d) | `…/replay-generalization/episode_NNNNNN.hdf5` |
 
 stage 4·5의 출력은 HF `Bench2Dex/teleopdata`와 같은 트리·형식이다(`<scene>/origin-generalization`, `<scene>/replay-generalization`).
@@ -81,4 +81,9 @@ retarget한다. GPU 한 장에 `PACK`(기본 2)개를 동시에 돌리고, `%MAX
   occupancy·box 라벨) → Bench2Dex 변환기로 LeRobot v3 생성까지 통과. 공개 replay 파일과 구조 비교 시 남는 차이는
   (a) 손별 tactile 패드 이름(Bench2Dex가 로봇마다 다르게 정의), (b) 지표 스키마 버전(공개 데이터는 이전 Bench2Dex 코드로
   수집, 여기는 고정 커밋 fd90dcc의 MetricTracker)뿐이다. 복원된 씬(배경·텍스처·조명·카메라·distractor)은 공개 RGB와 같은 장면이다.
+- **상태 기록 방식인 이유**: SPIDER의 확정 실행은 커밋마다 스냅샷 복원에서 시작하므로, 관절 목표를 끊김 없이 다시 실행하면
+  재현되지 않는다(06 ep3: 프로토타입 자기 env에서도, env 1개·1024개 모두 ~200 프레임에 사과를 떨어뜨림). 그래서 실제로 일어난 상태를 기록한다.
+- **성공 에피소드 e2e** (프로토타입 SPIDER v2의 06 ep3 → Shadow, 530 프레임): stage 4 기록 → MetricTracker 공식 판정 **성공** →
+  stage 5 렌더(390 s)·라벨 → LeRobot v3 변환(528 프레임) 통과. 렌더 영상에서 그릇 이동·사과 2개·바나나 적재가 그대로 보이고
+  오른손 파지 구간에 TacMap 신호가 있다.
 - 클러스터에서는 아직 한 번도 돌리지 않았다.

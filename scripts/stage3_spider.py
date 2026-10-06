@@ -14,12 +14,13 @@ so the target robot reproduces the demo object motion under Bench2Dex physics.
     commits and re-plan with more effort, up to `max_retries` times per frame.
   * After the demo the last command is held for `settle` frames, as a Bench2Dex rollout keeps
     simulating.
-  * Output is the PLAN, not a dataset: the reset state and the joint target executed at every
-    control step (``cmd``), plus the optimised rollout for diagnostics. Stage 4 re-executes the
-    plan open-loop in one env and records it the Bench2Dex way; the optimised rollout itself went
-    through a snapshot restore every commit and is not a continuous execution.
+  * The committed execution (env 0) is kept as a state trace: the state after every physics step
+    and the joint target executed at every control step (b2dr.recorder.capture), truncated with
+    the rollout on backtracking. Samples are never recorded. Stage 4 writes the trace as a
+    Bench2Dex episode; re-executing the joint targets open-loop does NOT reproduce the run (every
+    commit starts from a restored snapshot), so the states are the record.
   * Success reported here is the scene's success_conditions with the dwell rule, a progress
-    signal; the official verdict is MetricTracker's, on the stage-4 re-execution.
+    signal; the official verdict is MetricTracker's, computed by stage 4 on the trace.
 
   python scripts/stage3_spider.py --task 06 --episode 0 --target shadow --headless
 """
@@ -64,7 +65,7 @@ import numpy as np  # noqa: E402
 import torch  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from b2dr import paths  # noqa: E402
+from b2dr import paths, recorder  # noqa: E402
 from b2dr.spider_env import SpiderEnv, SuccessTracker, make_cfg  # noqa: E402
 
 ART_W = 10.0      # cost per rad (or m) of articulation joint error, same weight as object position
@@ -171,10 +172,16 @@ def main():
         rec["err"].append(obj_err(env).cpu().numpy())
         tracker.update(env.success_states(0))
 
-    def commit_step(a):
-        record(env.commit_step(a))
+    trace = []                                       # aligned with rec: one entry per frame
 
-    init = env.snapshot()                            # the state stage 4 starts the re-execution from
+    def commit_step(a):
+        subs = []
+        cmd = env.commit_step(a, after_physics_step=lambda: subs.append(recorder.capture(env)))
+        trace[-1]["cmd"] = cmd                       # executed from the previous frame on
+        trace.append({"state": subs[-1], "substeps": subs, "cmd": None})
+        record(cmd)
+
+    trace.append({"state": recorder.capture(env), "substeps": [], "cmd": None})
     record(env.q_target[0].cpu().numpy())            # frame 0: the reset state
     while int(env.frame[0]) < T - 3:
         f = int(env.frame[0])
@@ -223,6 +230,8 @@ def main():
                 del history[back:]
                 for kk in rec:
                     del rec[kk][n_keep:]
+                del trace[n_keep:]
+                trace[-1]["cmd"] = None
                 tracker.load(tstate)
                 env.restore(snap)
                 level_until = key + (args.backtrack + 1) * S + H
@@ -255,17 +264,11 @@ def main():
     res["task_success"] = res["scene_success"]
     out_dir.mkdir(parents=True, exist_ok=True)
     art = {f"art/{k}": np.array([a[k] for a in rec["art"]]) for k in env.art_ids}
-    init_np = {"init/q": init["q"].cpu().numpy(), "init/q_target": init["q_target"].cpu().numpy()}
-    for k, d in init["obj"].items():
-        init_np[f"init/obj/{k}/pose"] = d["pose"].cpu().numpy()
-        if "jp" in d:
-            init_np[f"init/obj/{k}/jp"] = d["jp"].cpu().numpy()
-            init_np[f"init/obj/{k}/jt"] = d["jt"].cpu().numpy()
-    # cmd[t] is the joint target executed from frame t to t+1 (frame 0 = reset state)
+    recorder.save_trace(out_dir / f"{args.tag}_trace.pkl.gz", recorder.trace_header(env), trace)
     np.savez_compressed(out_dir / f"{args.tag}_rollout.npz", q=np.array(rec["q"]), cmd=np.array(rec["q_target"][1:]),
                         obj=np.array(rec["obj"]), err=er, success=np.array(tracker.history),
                         joint_names=np.array(env.joint_names), obj_ids=np.array(env.obj_ids),
-                        result=np.array(json.dumps(res)), **art, **init_np)
+                        result=np.array(json.dumps(res)), **art)
     json.dump(res, open(res_path, "w"), indent=1)
     print(f"RESULT stage3 {res['task']} ep{args.episode} {res['source']}->{args.target}: "
           f"{'SUCCESS' if res['task_success'] else 'fail'} (scene conditions, {res['minutes']} min)", flush=True)
