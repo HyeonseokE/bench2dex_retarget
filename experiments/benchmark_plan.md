@@ -9,7 +9,7 @@ the other hands that Bench2Dex mounts on the **same UR5 arm**, so that only the 
 |---|---|---|
 | Tasks | 26 | 26 task datasets on HF `Bench2Dex/teleopdata`; 27 scene yamls (`86_short_jigsaw_puzzle` has no demos) |
 | Robot embodiments | 12 | 12 registered in `robots/__init__.py` |
-| Demos | ~1.3K (26 x 50) | per task `origin-generalization/`: `episode_000000..049.hdf5` + the same 50 indices with a `_1` suffix. The `_1` files are re-renders of the same trajectories (checked on task 06; consistent with 26 x 50 = 1.3K), so a task has **50 unique episodes** |
+| Demos | ~1.3K (26 x 50) | per task `origin-generalization/`: `episode_000000..049.hdf5` + the same 50 indices with a `_1` suffix. **Retargeting uses only the 50 files without suffix.** A `_1` file has the same robot joints, actions, object poses and metrics as its original; only the visual randomisation differs (iTHOR background, table texture, lighting). `replay-generalization/` is the rendered version of both and is not needed either (checked on 06 ep0/7/21, 2026-10-06) |
 
 - Each Bench2Dex robot is a fixed **arm + hand** asset. Scene yamls do not name a robot, so any robot can
   be spawned in any task; each task's demos come from **one** robot (`meta/robot_key`, checked on every

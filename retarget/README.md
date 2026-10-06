@@ -20,6 +20,22 @@ Bench2Dex teleop 데모를 **소스 손에서 나머지 UR5 손 4종으로** 옮
 
 목표 손은 소스를 제외한 4종이 자동으로 정해진다(`TARGETS`로 덮어쓸 수 있음).
 
+## 소스 데이터 — 원본 50개만 쓴다
+
+HF `Bench2Dex/teleopdata`의 각 task 폴더에는 같은 인덱스로 파일이 두 벌 있다.
+
+| 파일 | 내용 | retargeting |
+|---|---|---|
+| `dataset/<scene>/origin-generalization/episode_000000..049.hdf5` | 원본 텔레옵 에피소드 50개 (상태·액션·지표, 렌더 없음, ~4 MB) | **입력으로 쓴다** |
+| `.../episode_000000_1..049_1.hdf5` | 같은 궤적의 시각 증강본: 로봇 관절·액션·물체 pose·지표는 원본과 **완전히 같고**, 배경(iTHOR FloorPlan)·테이블 재질·조명만 다르게 샘플링 | 받지 않는다 (동작이 같음) |
+| `dataset/<scene>/replay-generalization/...` | 위 두 벌을 카메라 6대·TacMap·라벨까지 렌더한 버전 | 받지 않는다 (stage 5에서 우리가 직접 렌더) |
+
+그래서 고유 데모는 task당 50개다(26 x 50 = 논문의 ~1.3K). `ondemand/fetch_data.py`(로컬은 `setup.sh --fetch`)는
+`origin-generalization/episode_NNNNNN.hdf5`(접미사 없는 것)만 받아 `$B2D_ROOT/b2d_origin/dataset/`에 둔다.
+직접 받을 때도 `allow_patterns=["dataset/<scene>/origin-generalization/episode_??????.hdf5"]`처럼 `_1`과 replay를 빼면 된다.
+(06 ep0·ep7·ep21에서 원본과 `_1`을 비교해 확인, 2026-10-06.) 공개 데이터처럼 100개를 맞추려면 성공 에피소드를 `_1`의
+appearance 샘플로 한 번 더 렌더하면 되지만, 지금 파이프라인에는 없다.
+
 ## 레이아웃
 
 | 경로 | 내용 |

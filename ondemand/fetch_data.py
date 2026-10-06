@@ -2,7 +2,9 @@
 
 Runs inside the Isaac Sim container (huggingface_hub and yaml come from the setup step).
 
-  episodes  Bench2Dex/teleopdata dataset/<task>/origin-generalization/episode_000000..N-1.hdf5
+  episodes  Bench2Dex/teleopdata dataset/<task>/origin-generalization/episode_000000..N-1.hdf5 only: the *_1
+            files are the same trajectories with another background/texture/lighting sample, and
+            replay-generalization/ is their rendered version, so neither is needed
             (origin = trajectories without images, ~4 MB each), plus episodes 0-4 of one task per
             hand (06 RH56DFX, 07 RH5DG2, 43 Shadow, 08 Schunk, 21 Wuji): retarget.coupling fits each
             target hand's mimic joints on that hand's own demos, whatever task is being retargeted.

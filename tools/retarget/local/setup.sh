@@ -8,6 +8,8 @@
 #
 # Needs: NVIDIA driver >= 570 (RTX 30xx/40xx/50xx, A/H/L-series), conda, git, ~60 GB disk
 # (env ~15 GB, assets ~19 GB, episodes ~4 MB each). Put your Hugging Face token in ~/.hf_token.
+# --fetch downloads only the 50 original source episodes per task (origin-generalization/episode_NNNNNN.hdf5);
+# the *_1 files (same trajectories, other background/texture/lighting) and replay-generalization are not needed.
 # Headless containers also need Vulkan: apt install libvulkan1 and an NVIDIA ICD json pointing to
 # libEGL_nvidia.so.0 (see README "로컬 GPU 서버").
 set -euo pipefail
