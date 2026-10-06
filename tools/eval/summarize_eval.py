@@ -1,8 +1,8 @@
 """Summarize auto_eval.sh outputs and compare against the paper's numbers.
 
 Usage:
-    python script/summarize_eval.py --policy ACT --task 06
-    python script/summarize_eval.py --policy MyPolicy --task 06 --record-subdir _run1
+    python tools/eval/summarize_eval.py --policy ACT --task 06
+    python tools/eval/summarize_eval.py --policy MyPolicy --task 06 --record-subdir _run1
 
 Counts episodes in outputs/inference_recordings/<POLICY>/<TASK><SUBDIR>/<profile>/{success,failure}.
 """

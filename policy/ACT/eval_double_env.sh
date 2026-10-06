@@ -24,9 +24,6 @@ set -euo pipefail
 #   --seed N                           eval seed (overrides positional)
 #   --headless                         run without GUI
 
-# Allocator-only setting (no numerical effect): reduces fragmentation OOMs when two evals share one GPU.
-export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
-
 TASK=${1:?"Usage: bash eval_double_env.sh TASK CKPT_DIR [args...]"}
 CKPT_DIR=${2:?"Usage: bash eval_double_env.sh TASK CKPT_DIR [args...]"}
 shift 2
