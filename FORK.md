@@ -9,7 +9,6 @@ inside our own modules), never in the authors' code.
 | `retarget/` | SPIDER cross-embodiment retargeting library ([README](retarget/README.md)) |
 | `tools/retarget/` | retargeting entry points (stage1–5, run_target, HF upload, audit) |
 | `ondemand/` | SLURM jobs for the pro6000 cluster ([README](ondemand/README.md)) |
-| `vast/` | `setup.sh`: rebuild the dev-box environment on a vast.ai instance |
 | `policy/MyPolicy/` | own policy, in the authors' plugin location (`policy.<name>.deploy_policy`) |
 | `tools/eval/` | eval helpers: `act_shared_gpu.sh` (wraps `policy/ACT/eval_double_env.sh`), `summarize_eval.py` |
 | `FORK.md` | this file |
