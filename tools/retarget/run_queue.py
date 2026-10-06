@@ -3,7 +3,8 @@ spread over the local GPUs, the dev-box counterpart of ondemand/main_job.sbatch.
 
 Per episode: stage 1 once, then tools/retarget/run_target.py per target (stage 2, SPIDER with
 retries, Bench2Dex record, render, optional HF upload). Every step skips finished work, so the
-command can be stopped and re-run. Progress: $B2DR_RUNS/STATUS.md (tools/retarget/status_report.py).
+command can be stopped and re-run. Outputs: results/ ; progress: experiments/STATUS.md and
+experiments/<scene>/<target>/STATUS.md.
 
   source tools/retarget/local/env.sh
   python tools/retarget/run_queue.py --tasks 06 12 42 --gpus 0 1 --per_gpu 2 --no_upload
@@ -56,6 +57,8 @@ def main():
     logdir = paths.RUNS / "logs"
     logdir.mkdir(parents=True, exist_ok=True)
     threads = []
+    if not a.dry_run:
+        subprocess.run([py, str(HERE / "init_experiments.py")])
     reporter = subprocess.Popen([py, str(HERE / "status_report.py"), "--loop", "120"]) if not a.dry_run else None
 
     def acquire():

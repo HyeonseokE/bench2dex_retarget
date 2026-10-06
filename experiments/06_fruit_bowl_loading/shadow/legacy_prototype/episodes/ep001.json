@@ -1,0 +1,37 @@
+{
+ "name": "ep001",
+ "policy": "spider",
+ "frames": 510,
+ "task_success": true,
+ "stable_success_frame": null,
+ "final_conditions": {
+  "object_in_zone:bowl_1": true,
+  "object_upright:bowl_1": true,
+  "all:banana_2+bowl_1": true,
+  "all:apple_3+bowl_1": true,
+  "all:apple_4+bowl_1": true
+ },
+ "conditions": {
+  "object_in_zone:bowl_1": true,
+  "object_upright:bowl_1": true,
+  "all:banana_2+bowl_1": true,
+  "all:apple_3+bowl_1": true,
+  "all:apple_4+bowl_1": true
+ },
+ "score": 5,
+ "minutes": 86.1,
+ "obj_err_mean_cm": {
+  "obj_011_banana_2": 0.3199999928474426,
+  "obj_013_apple_3": 0.8399999737739563,
+  "obj_013_apple_4": 1.3600000143051147,
+  "obj_024_bowl_1": 0.36000001430511475
+ },
+ "obj_err_final_cm": {
+  "obj_011_banana_2": 1.1100000143051147,
+  "obj_013_apple_3": 2.880000114440918,
+  "obj_013_apple_4": 2.0899999141693115,
+  "obj_024_bowl_1": 0.05999999865889549
+ },
+ "task_success_rollout_end": false,
+ "success_check": "final state restored + 2 s hold of last pose: 40/40 frames all 5 conditions (Bench2Dex dwell 0.5 s met)"
+}

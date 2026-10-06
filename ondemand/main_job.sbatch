@@ -89,7 +89,7 @@ if [ "$RUNNING" -gt 0 ]; then
   squeue -u "$USER" -o '%.12i %.20j %.10T %.12M' | grep -E 'JOBID|b2dr-retarget'
   exit 1
 fi
-WORKLIST="$WS/b2dr_runs/worklist_${SLURM_JOB_ID:-manual}.txt"
+WORKLIST="$REPO_DIR/results/worklist_${SLURM_JOB_ID:-manual}.txt"
 : > "$WORKLIST"
 for t in $TASKS; do
   d="$(ls -d "$WS/b2d_origin/dataset/${t}"*/origin-generalization 2>/dev/null | head -1)"

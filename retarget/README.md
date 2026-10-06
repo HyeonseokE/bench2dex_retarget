@@ -28,7 +28,7 @@ Bench2Dex teleop 데모를 **소스 손에서 나머지 UR5 손 4종으로** 옮
 | `tools/retarget/` | 실행 스크립트: stage1–5, `run_target.py`(시도 반복·status.json·업로드), `upload_hf.py`, `hf_card.py`, `audit_episode.py`, `label_episode.py`, `run_episode.sh` |
 | `ondemand/` | SLURM 잡·컨테이너·데이터 다운로드만 (코드 없음) |
 
-출력 루트는 `$B2DR_RUNS`(기본 `$B2D_ROOT/b2dr_runs`), 소스 데이터는 `$B2D_ROOT/b2d_origin/dataset`이다.
+출력은 레포 안 두 폴더로 나뉜다: `results/`(참조·trace·rollout·HDF5·영상·로그, git 제외, `$B2DR_RUNS`로 변경 가능)와 `experiments/`(task별·목표 손별 폴더에 진행상황·수치·config, 실험 환경·문서, git 추적). 소스 데이터는 `$B2D_ROOT/b2d_origin/dataset`이다.
 
 ## 파이프라인 — 에피소드 하나, 목표 로봇 하나
 
@@ -58,7 +58,7 @@ LeRobot v3가 필요하면 Bench2Dex의 `tools/export/convert_bench2dex_to_lerob
 ## 로컬 GPU 서버 (SLURM·컨테이너 없음)
 
 ```bash
-# 0) 작업 루트(B2D_ROOT) 아래에 fork를 clone. 이 아래에 IsaacLab, assets, b2d_origin, b2dr_runs, envs/b2d가 생긴다
+# 0) 작업 루트(B2D_ROOT) 아래에 fork를 clone. 이 아래에 IsaacLab, assets, b2d_origin, envs/b2d가 생긴다
 mkdir -p ~/b2d && cd ~/b2d && git clone https://github.com/HyeonseokE/bench2dex_retarget.git
 echo <HF 토큰> > ~/.hf_token                     # 익명 다운로드는 Hub rate-limit에 걸린다
 
@@ -67,11 +67,11 @@ TASKS="06 12 42 07 34 60 43 76 08 44 21 27" bash bench2dex_retarget/tools/retarg
 
 # 2) 실행: (task, 에피소드, 목표 손) 큐를 GPU에 나눠 돌린다. 중단 후 다시 실행하면 끝난 것은 건너뛴다
 source bench2dex_retarget/tools/retarget/local/env.sh && cd bench2dex_retarget
-nohup python tools/retarget/run_queue.py --tasks 12 42 --gpus 0 1 --per_gpu 2 --no_upload > ../b2dr_runs/queue.log 2>&1 &
+nohup python tools/retarget/run_queue.py --tasks 12 42 --gpus 0 1 --per_gpu 2 --no_upload > results/queue.log 2>&1 &
 
 # 3) 진행상황: 2분마다 갱신
-cat ../b2dr_runs/STATUS.md          # task x 목표 손별 성공/실패/진행중, 진행 중 에피소드의 마지막 이벤트
-cat ../b2dr_runs/results.csv        # (task, 에피소드, 목표)별 상태
+cat experiments/STATUS.md          # task x 목표 손별 성공/실패/진행중, 진행 중 에피소드의 마지막 이벤트
+cat experiments/<scene>/<target>/STATUS.md        # (task, 에피소드, 목표)별 상태
 ```
 
 - 목표 손 기본값은 소스를 뺀 UR5 손 4종이다(`--targets`로 지정 가능). 에피소드마다 stage 1을 한 번 돌리고, 목표마다
@@ -79,7 +79,7 @@ cat ../b2dr_runs/results.csv        # (task, 에피소드, 목표)별 상태
 - GPU 메모리: SPIDER 1024 샘플 프로세스 하나가 5~6 GB다. 24 GB GPU에서는 `--per_gpu` 3 이하(메모리 부족은 PhysX 상태를 깨뜨린다).
 - 헤드리스 컨테이너에서 Isaac Sim이 Vulkan을 못 찾으면: `apt install libvulkan1` 후 `/usr/share/vulkan/icd.d/nvidia_icd.json`을
   `{"file_format_version":"1.0.1","ICD":{"library_path":"libEGL_nvidia.so.0","api_version":"1.4.312"}}`로 둔다.
-- 로그: `b2dr_runs/logs/<task>_epNNN_<target>.log`(큐), `b2dr_runs/<scene>/epNNN/<target>/run.log`(단계별).
+- 로그: `results/logs/<task>_epNNN_<target>.log`(큐), `results/<scene>/epNNN/<target>/run.log`(단계별).
 
 ## 클러스터 (pro6000, OpenOnDemand)
 

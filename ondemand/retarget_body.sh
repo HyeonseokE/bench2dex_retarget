@@ -12,7 +12,7 @@
 #   UPLOAD=0       keep results local; HF_NAMESPACE / HF_STAGES are read by tools/retarget/upload_hf.py
 
 set +e        # failures are handled per stage; one target failing must not kill the others
-RUN="$WS/b2dr_runs"
+RUN="$REPO_DIR/results"
 ALL_ROBOTS="rh56dfx rh5dg2 shadow schunk wuji"
 PACK="${PACK:-2}"
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-5}"

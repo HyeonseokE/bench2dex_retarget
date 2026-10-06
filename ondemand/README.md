@@ -60,7 +60,7 @@ dataset/<scene>/<target>/replay-generalization/episode_NNNNNN.hdf5   # origin + 
 | `checks/` | `env_check.sbatch`가 쓰는 L1/L3/L4 점검 스크립트 |
 
 로그: `slurm-b2dr-{envcheck,main}-<job>.out`, `slurm-b2dr-retarget-<job>_<idx>.out`, `slurm-b2dr-finalize-<job>.out`.
-작업 출력: `$HOME/b2d/b2dr_runs/<scene>/epNNN/<robot>/`.
+작업 출력: `$HOME/b2d/bench2dex_retarget/results/<scene>/epNNN/<robot>/`.
 
 **비용 미실측.** SPIDER 1회는 에피소드 길이(400~1200 프레임)에 따라 대략 0.5~2 GPU-h로 추정한다. 클러스터에서는 아직 돌려 보지 않았으니
 `env_check.sbatch` → `main_job.sbatch`(TASKS=06) 순서로 시작한다.

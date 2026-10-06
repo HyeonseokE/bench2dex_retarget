@@ -9,7 +9,7 @@
 #     bench2dex_retarget/   the fork HyeonseokE/bench2dex_retarget (git pull --ff-only at the start of every job);
 #                           this pipeline lives in its ondemand/ folder
 #     IsaacLab/             v2.3.2                     assets/ (+ dex2bench_dataset -> assets)
-#     b2d_origin/dataset/   teleop episodes             b2dr_runs/  outputs
+#     b2d_origin/dataset/   teleop episodes             <repo>/results/  outputs
 #     .pyuser/              Isaac Lab + deps            sif/isaac-sim_5.1.0.sif
 
 export HOME="${HOME:-$(getent passwd "$(id -un)" | cut -d: -f6)}"
@@ -22,7 +22,7 @@ SIF="${SIF:-$WS/sif/isaac-sim_5.1.0.sif}"
 ISAAC_IMAGE="docker://nvcr.io/nvidia/isaac-sim:5.1.0"
 GIT_IMAGE="docker://hyeonseoke/lerobot:v1"      # carries git; the bare compute node may not
 ISAACLAB_TAG="v2.3.2"
-mkdir -p "$WS/sif" "$WS/.pyuser" "$WS/.cache/pip" "$WS/.cache/huggingface" "$WS/b2dr_runs"
+mkdir -p "$WS/sif" "$WS/.pyuser" "$WS/.cache/pip" "$WS/.cache/huggingface"
 
 # Node-local scratch: apptainer layers and the container $HOME (Kit's shader/texture caches).
 NODE="/tmp/b2d-$USER"

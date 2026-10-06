@@ -1,0 +1,74 @@
+{
+ "name": "ep012",
+ "policy": "spider",
+ "frames": 532,
+ "task_success": false,
+ "stable_success_frame": null,
+ "settle_frames": 40,
+ "args": {
+  "task_json": "tasks/06_windows_pp.json",
+  "episodes": [
+   "ep012"
+  ],
+  "out": "runs/06_spider_v2",
+  "num_samples": 1024,
+  "horizon": 30,
+  "knot": 5,
+  "commit": 5,
+  "iters": 5,
+  "sigma": 0.5,
+  "guide_gain": 300.0,
+  "env_cfg": "{\"finger_res_cap\":0.6}",
+  "max_retries": 3,
+  "squeeze": 0.02,
+  "drop_jump": 0.025,
+  "gate_look": 10,
+  "settle": 40,
+  "backtrack": 2,
+  "enable_cameras": false,
+  "xr": false,
+  "device": "cuda:0",
+  "cpu": false,
+  "verbose": false,
+  "info": false,
+  "rendering_mode": null,
+  "kit_args": "",
+  "anim_recording_enabled": false,
+  "anim_recording_start_time": 0,
+  "anim_recording_stop_time": 10,
+  "headless": true,
+  "hide_ui": true,
+  "create_new_stage": false,
+  "physics_gpu": 0,
+  "active_gpu": 0
+ },
+ "instant_success_frames": 3,
+ "final_conditions": {
+  "object_in_zone:bowl_1": true,
+  "object_upright:bowl_1": true,
+  "all:banana_2+bowl_1": false,
+  "all:apple_3+bowl_1": true,
+  "all:apple_4+bowl_1": true
+ },
+ "conditions": {
+  "object_in_zone:bowl_1": true,
+  "object_upright:bowl_1": true,
+  "all:banana_2+bowl_1": true,
+  "all:apple_3+bowl_1": true,
+  "all:apple_4+bowl_1": true
+ },
+ "score": 5,
+ "minutes": 109.2,
+ "obj_err_mean_cm": {
+  "obj_011_banana_2": 1.440000057220459,
+  "obj_013_apple_3": 2.119999885559082,
+  "obj_013_apple_4": 2.6500000953674316,
+  "obj_024_bowl_1": 1.0800000429153442
+ },
+ "obj_err_final_cm": {
+  "obj_011_banana_2": 8.1899995803833,
+  "obj_013_apple_3": 6.369999885559082,
+  "obj_013_apple_4": 1.8799999952316284,
+  "obj_024_bowl_1": 2.990000009536743
+ }
+}

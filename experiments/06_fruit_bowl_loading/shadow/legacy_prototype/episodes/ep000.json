@@ -1,0 +1,27 @@
+{
+ "name": "ep000",
+ "policy": "spider",
+ "frames": 521,
+ "task_success": true,
+ "conditions": {
+  "object_in_zone:bowl_1": true,
+  "object_upright:bowl_1": true,
+  "all:banana_2+bowl_1": true,
+  "all:apple_3+bowl_1": true,
+  "all:apple_4+bowl_1": true
+ },
+ "score": 5,
+ "minutes": 45.2,
+ "obj_err_mean_cm": {
+  "obj_011_banana_2": 1.1100000143051147,
+  "obj_013_apple_3": 0.5699999928474426,
+  "obj_013_apple_4": 0.7699999809265137,
+  "obj_024_bowl_1": 0.7300000190734863
+ },
+ "obj_err_final_cm": {
+  "obj_011_banana_2": 7.210000038146973,
+  "obj_013_apple_3": 1.5499999523162842,
+  "obj_013_apple_4": 1.1399999856948853,
+  "obj_024_bowl_1": 0.9200000166893005
+ }
+}

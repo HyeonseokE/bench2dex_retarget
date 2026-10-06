@@ -16,7 +16,7 @@ B2D_ROOT="${B2D_ROOT:-$(cd "$HERE/../../../.." && pwd)}"
 ENV_DIR="${B2D_ENV:-$B2D_ROOT/envs/b2d}"
 ISAACLAB_TAG=v2.3.2
 cd "$B2D_ROOT"
-mkdir -p assets b2d_origin b2dr_runs .cache
+mkdir -p assets b2d_origin .cache
 [ -e dex2bench_dataset ] || ln -s assets dex2bench_dataset     # Bench2Dex robot configs load ../dex2bench_dataset/...
 
 source "$(conda info --base)/etc/profile.d/conda.sh"

@@ -1,4 +1,5 @@
-"""Progress of every retargeting run under $B2DR_RUNS: STATUS.md (per task x target) and results.csv.
+"""Progress of every retargeting run under results/ ($B2DR_RUNS), written into experiments/:
+experiments/STATUS.md (all task x target pairs) and experiments/<scene>/<target>/STATUS.md, results.csv.
 
 Reads <scene>/epNNN/<target>/status.json (written by run_target.py) and, when it is still running,
 the last progress line of the newest stage-3 log.
@@ -49,40 +50,52 @@ def collect(runs: Path):
     return rows
 
 
-def write(runs: Path, rows):
-    with open(runs / "results.csv", "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=["task", "episode", "target", "state", "attempts", "success"])
-        w.writeheader()
-        for r in rows:
-            w.writerow({k: r[k] for k in w.fieldnames})
-    by = defaultdict(Counter)
+def pair_table(rows):
+    L = ["| episode | state | attempts | last event |", "|---|---|---|---|"]
+    L += [f"| {r['episode']} | {r['state']} | {r['attempts']} | {r['progress'] or '-'} |" for r in rows]
+    return L
+
+
+def write(exp: Path, rows, runs: Path):
+    """experiments/STATUS.md (all pairs) + experiments/<scene>/<target>/STATUS.md, results.csv."""
+    stamp = time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())
+    fields = ["task", "episode", "target", "state", "attempts", "success"]
+    groups = defaultdict(list)
     for r in rows:
-        by[(r["task"], r["target"])]["ok" if r["success"] else "fail" if r["done"] else "running"] += 1
-    L = [f"# Retargeting status ({runs})", "", f"Updated: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}", "",
+        groups[(r["task"], r["target"])].append(r)
+    for (task, tgt), rs in groups.items():
+        d = exp / task / tgt
+        d.mkdir(parents=True, exist_ok=True)
+        with open(d / "results.csv", "w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=fields)
+            w.writeheader()
+            for r in rs:
+                w.writerow({k: r[k] for k in fields})
+        ok = sum(r["success"] for r in rs)
+        bad = sum(r["done"] and not r["success"] for r in rs)
+        (d / "STATUS.md").write_text("\n".join(
+            [f"# {task} -> {tgt}: status", "", f"Updated: {stamp}", "",
+             f"{ok} success / {bad} failed / {len(rs) - ok - bad} in progress (episodes started so far)", ""]
+            + pair_table(rs)) + "\n")
+    L = [f"# Retargeting status", "", f"Updated: {stamp}  ·  data: `{runs}`", "",
          f"Total: {sum(r['success'] for r in rows)} success / {sum(r['done'] and not r['success'] for r in rows)} failed / "
          f"{sum(not r['done'] for r in rows)} in progress", "",
          "| task | target | success | failed | in progress |", "|---|---|---|---|---|"]
-    for (t, g), c in sorted(by.items()):
-        L.append(f"| {t} | {g} | {c['ok']} | {c['fail']} | {c['running']} |")
-    run = [r for r in rows if not r["done"]]
-    if run:
-        L += ["", "## In progress", "", "| task | episode | target | state | attempts | last event |", "|---|---|---|---|---|---|"]
-        L += [f"| {r['task']} | {r['episode']} | {r['target']} | {r['state']} | {r['attempts']} | {r['progress']} |" for r in run]
-    bad = [r for r in rows if r["done"] and not r["success"]]
-    if bad:
-        L += ["", "## Failed", "", "| task | episode | target | state | attempts |", "|---|---|---|---|---|"]
-        L += [f"| {r['task']} | {r['episode']} | {r['target']} | {r['state']} | {r['attempts']} |" for r in bad]
-    (runs / "STATUS.md").write_text("\n".join(L) + "\n")
+    for (t, g), rs in sorted(groups.items()):
+        c = Counter("ok" if r["success"] else "fail" if r["done"] else "running" for r in rs)
+        L.append(f"| [{t}]({t}/) | [{g}]({t}/{g}/STATUS.md) | {c['ok']} | {c['fail']} | {c['running']} |")
+    (exp / "STATUS.md").write_text("\n".join(L) + "\n")
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--loop", type=int, default=0, help="seconds between refreshes (0: once)")
     a = ap.parse_args()
-    runs = paths.RUNS
+    runs, exp = paths.RUNS, paths.EXPERIMENTS
     runs.mkdir(parents=True, exist_ok=True)
+    exp.mkdir(parents=True, exist_ok=True)
     while True:
-        write(runs, collect(runs))
+        write(exp, collect(runs), runs)
         if not a.loop:
             break
         time.sleep(a.loop)

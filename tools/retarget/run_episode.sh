@@ -4,7 +4,7 @@
 #   bash tools/retarget/run_episode.sh 06 0 shadow [extra stage-3 args...]
 #
 # Uses the conda env from /workspace/bench2dex_env.sh. Outputs go to $B2DR_RUNS (default
-# /workspace/b2dr_runs); every stage skips when its output exists.
+# <repo>/results); every stage skips when its output exists.
 set -e
 TASK=$1 EP=$2 TGT=$3
 shift 3

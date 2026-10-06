@@ -1,0 +1,37 @@
+{
+ "name": "ep006",
+ "policy": "spider",
+ "frames": 527,
+ "task_success": false,
+ "stable_success_frame": null,
+ "settle_frames": 40,
+ "instant_success_frames": 0,
+ "final_conditions": {
+  "object_in_zone:bowl_1": true,
+  "object_upright:bowl_1": true,
+  "all:banana_2+bowl_1": true,
+  "all:apple_3+bowl_1": true,
+  "all:apple_4+bowl_1": false
+ },
+ "conditions": {
+  "object_in_zone:bowl_1": true,
+  "object_upright:bowl_1": true,
+  "all:banana_2+bowl_1": true,
+  "all:apple_3+bowl_1": true,
+  "all:apple_4+bowl_1": false
+ },
+ "score": 4,
+ "minutes": 250.0,
+ "obj_err_mean_cm": {
+  "obj_011_banana_2": 1.7200000286102295,
+  "obj_013_apple_3": 0.9800000190734863,
+  "obj_013_apple_4": 9.6899995803833,
+  "obj_024_bowl_1": 1.7899999618530273
+ },
+ "obj_err_final_cm": {
+  "obj_011_banana_2": 5.800000190734863,
+  "obj_013_apple_3": 1.399999976158142,
+  "obj_013_apple_4": 14.390000343322754,
+  "obj_024_bowl_1": 2.1700000762939453
+ }
+}

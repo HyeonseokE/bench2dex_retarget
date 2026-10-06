@@ -1,10 +1,10 @@
 # Source before running retargeting on a plain GPU server (no SLURM / container):
 #   source tools/retarget/local/env.sh
 # Layout under B2D_ROOT (default: the parent of this Bench2Dex checkout):
-#   Bench2Dex/  IsaacLab/  assets/  dex2bench_dataset -> assets  b2d_origin/dataset/  b2dr_runs/  envs/b2d/
+#   bench2dex_retarget/  IsaacLab/  assets/  dex2bench_dataset -> assets  b2d_origin/dataset/  envs/b2d/
+# Retargeting writes into the checkout: results/ (data, git-ignored) and experiments/ (numbers, docs).
 _here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export B2D_ROOT="${B2D_ROOT:-$(cd "$_here/../../../.." && pwd)}"
-export B2DR_RUNS="${B2DR_RUNS:-$B2D_ROOT/b2dr_runs}"
 export B2D_ENV="${B2D_ENV:-$B2D_ROOT/envs/b2d}"
 _conda="$(conda info --base 2>/dev/null)"
 [ -n "$_conda" ] && source "$_conda/etc/profile.d/conda.sh"

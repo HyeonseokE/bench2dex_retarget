@@ -1,0 +1,37 @@
+{
+ "name": "ep003",
+ "policy": "spider",
+ "frames": 529,
+ "task_success": true,
+ "stable_success_frame": 481,
+ "settle_frames": 40,
+ "instant_success_frames": 57,
+ "final_conditions": {
+  "object_in_zone:bowl_1": true,
+  "object_upright:bowl_1": true,
+  "all:banana_2+bowl_1": true,
+  "all:apple_3+bowl_1": true,
+  "all:apple_4+bowl_1": true
+ },
+ "conditions": {
+  "object_in_zone:bowl_1": true,
+  "object_upright:bowl_1": true,
+  "all:banana_2+bowl_1": true,
+  "all:apple_3+bowl_1": true,
+  "all:apple_4+bowl_1": true
+ },
+ "score": 5,
+ "minutes": 81.2,
+ "obj_err_mean_cm": {
+  "obj_011_banana_2": 0.4300000071525574,
+  "obj_013_apple_3": 2.8499999046325684,
+  "obj_013_apple_4": 0.4000000059604645,
+  "obj_024_bowl_1": 0.49000000953674316
+ },
+ "obj_err_final_cm": {
+  "obj_011_banana_2": 1.8200000524520874,
+  "obj_013_apple_3": 7.980000019073486,
+  "obj_013_apple_4": 0.6100000143051147,
+  "obj_024_bowl_1": 0.6499999761581421
+ }
+}
