@@ -10,8 +10,13 @@ so the target robot reproduces the demo object motion under Bench2Dex physics.
   * Virtual contact guidance pulls demo contact points towards the fingertips during
     optimisation, annealed to 0; committed frames always run without it.
   * Only frames near manipulation are optimised (gate); elsewhere the reference is replayed.
-  * Backtracking: when a manipulated object jumps away from its reference, roll back `backtrack`
-    commits and re-plan with more effort, up to `max_retries` times per frame.
+  * Only when manipulation is within `gate_look` frames ahead does a replanning step optimise.
+  * Backtracking: when a manipulated object jumps away from its reference, roll back and re-plan the
+    segment with more effort. Distance back from the segment's first drop: `back_frames` twice, then
+    +2 frames per retry up to `back_max` (10, 10, 12, 14, 16, 18, 20). If the segment still fails, the
+    run continues (an object is often re-acquired later); `--abort_on_fail 1` stops the episode instead.
+  * A GPU physics failure (e.g. CUDA OOM: PhysX then returns frozen/identical object states) stops
+    the run with an error instead of producing a fake success.
   * After the demo the last command is held for `settle` frames, as a Bench2Dex rollout keeps
     simulating.
   * The committed execution (env 0) is kept as a state trace: the state after every physics step
@@ -45,12 +50,13 @@ ap.add_argument("--iters", type=int, default=5)
 ap.add_argument("--sigma", type=float, default=0.5)
 ap.add_argument("--guide_gain", type=float, default=300.0, help="N/m, contact spring at the first iteration")
 ap.add_argument("--squeeze", type=float, default=0.02, help="m; contact targets moved this far into the body")
-ap.add_argument("--max_retries", type=int, default=3, help="backtracks per frame")
-ap.add_argument("--max_total_retries", type=int, default=12,
-                help="backtracks per episode: once an object is lost for good, every later frame used to "
-                     "spend 3 retries on it (70 min on task 06 ep0, 256 samples)")
+ap.add_argument("--back_frames", type=int, default=10, help="first backtrack distance (frames), tried twice")
+ap.add_argument("--back_max", type=int, default=20, help="largest backtrack distance (frames), +2 per further retry")
+ap.add_argument("--gate_look", type=int, default=26, help="optimise only when manipulation is this many frames ahead")
+ap.add_argument("--abort_on_fail", type=int, default=0,
+                help="stop the episode when a segment fails after all retries. Off: the 06 prototype's successes "
+                     "often recovered an object after 6-18 drops; aborting at 5-7 failed every episode it hit")
 ap.add_argument("--drop_jump", type=float, default=0.025, help="m; error increase per commit counted as a drop")
-ap.add_argument("--backtrack", type=int, default=2)
 ap.add_argument("--settle", type=int, default=40)
 ap.add_argument("--env_cfg", default="", help="JSON overrides of SpiderEnvCfg fields")
 ap.add_argument("--no_hold_pass", action="store_true")
@@ -161,6 +167,8 @@ def main():
     rec = {"q": [], "q_target": [], "obj": [], "art": [], "err": []}
     t0, n_opt = time.time(), 0
     history, retries, level, level_until = [], {}, 0, 0
+    fhist, first_drop, aborted = [], {}, ""           # per-frame snapshots for fine backtracking
+    sched = [args.back_frames] * 2 + list(range(args.back_frames + 2, args.back_max + 1, 2))
     body_obj = env.body_obj.cpu().numpy()
 
     def record(cmd):
@@ -186,8 +194,11 @@ def main():
     while int(env.frame[0]) < T - 3:
         f = int(env.frame[0])
         history.append((env.snapshot(), len(rec["err"]), nominal.clone(), tracker.state()))
+        if not fhist or fhist[-1][0]["frame"] != f:
+            fhist.append(history[-1])
         h = min(H, T - 3 - f)
-        gate = env.gate[f + 1:f + 1 + h].max().item() if h > 0 else 0.0
+        look = min(h, args.gate_look) if args.gate_look > 0 else h
+        gate = env.gate[f + 1:f + 1 + look].max().item() if h > 0 else 0.0
         if gate > 0:
             s = env.snapshot()
             iters = args.iters * (1 + level)
@@ -214,6 +225,12 @@ def main():
             commit = torch.zeros(min(S, max(h, 1)), A, device=dev)
         for k in range(commit.shape[0]):
             commit_step(commit[k])
+            fhist.append((env.snapshot(), len(rec["err"]), nominal.clone(), tracker.state()))
+        del fhist[:-60]
+        # GPU physics failure guard: after e.g. a CUDA OOM PhysX returns frozen, identical object states
+        P = torch.as_tensor(np.array(rec["obj"][-1]))[:, :3]
+        if not torch.isfinite(P).all() or (len(P) > 1 and (torch.pdist(P) < 1e-4).any()):
+            raise RuntimeError(f"PhysX state corrupted at frame {int(env.frame[0])} (GPU error?) - result discarded")
         # backtracking: a manipulated object jumped away from its reference
         fa = min(int(env.frame[0]), T - 1)
         active = {int(body_obj[a]) for a in env.active[max(0, fa - 5):fa + 1].ravel() if a >= 0}
@@ -221,23 +238,38 @@ def main():
         if active and prev_len > 0:
             e_now, e_prev = rec["err"][-1], rec["err"][prev_len - 1]
             dropped = [o for o in active if e_now[o] > 0.04 and e_now[o] - e_prev[o] > args.drop_jump]
-            back = max(len(history) - args.backtrack, 0)
-            key = history[back][0]["frame"]
-            if dropped and retries.get(key, 0) < args.max_retries and sum(retries.values()) < args.max_total_retries:
-                retries[key] = retries.get(key, 0) + 1
-                level = retries[key]
-                snap, n_keep, nominal, tstate = history[back]
-                del history[back:]
-                for kk in rec:
-                    del rec[kk][n_keep:]
-                del trace[n_keep:]
-                trace[-1]["cmd"] = None
-                tracker.load(tstate)
-                env.restore(snap)
-                level_until = key + (args.backtrack + 1) * S + H
-                print(f"  drop of {[env.obj_ids[o] for o in dropped]} at frame {fa}: back to {key}, "
-                      f"retry {retries[key]} with {args.iters * (1 + level)} iterations", flush=True)
-                continue
+            if dropped:
+                o = dropped[0]
+                seg = fa                                   # start of this object's manipulation segment
+                while seg > 0 and (body_obj[env.active[seg - 1][env.active[seg - 1] >= 0]] == o).any():
+                    seg -= 1
+                rk = (o, seg)
+                if retries.get(rk, 0) < len(sched):
+                    retries[rk] = r = retries.get(rk, 0) + 1
+                    first_drop.setdefault(rk, fa)
+                    target = first_drop[rk] - sched[r - 1]
+                    level = min(r, 4)                      # at most 5x iterations
+                    cand = [i for i, x in enumerate(fhist) if x[0]["frame"] <= target]
+                    bi = cand[-1] if cand else 0
+                    snap, n_keep, nominal, tstate = fhist[bi]
+                    nominal = nominal.clone()
+                    key = snap["frame"]
+                    del fhist[bi + 1:]
+                    history = [x for x in history if x[0]["frame"] < key]
+                    for kk in rec:
+                        del rec[kk][n_keep:]
+                    del trace[n_keep:]
+                    trace[-1]["cmd"] = None
+                    tracker.load(tstate)
+                    env.restore(snap)
+                    level_until = fa + S + H
+                    print(f"  drop of {[env.obj_ids[x] for x in dropped]} at frame {fa}: back to {key}, "
+                          f"retry {r}/{len(sched)} with {args.iters * (1 + level)} iterations", flush=True)
+                    continue
+                if args.abort_on_fail:
+                    aborted = f"{env.obj_ids[o]} lost at frame {fa} after {retries[rk]} retries"
+                    print(f"  ABORT: {aborted}", flush=True)
+                    break
         if int(env.frame[0]) >= level_until:
             level = 0
         shift = max(commit.shape[0] // knot, 1)
@@ -248,7 +280,7 @@ def main():
 
     # settle: hold the last command, no residual, no guidance
     env.guide_gain = 0.0
-    for _ in range(args.settle):
+    for _ in range(0 if aborted else args.settle):
         commit_step(None)
 
     stable = tracker.stable_frame()
@@ -258,7 +290,7 @@ def main():
            "scene_success": stable is not None, "scene_stable_success_frame": stable,
            "instant_success_frames": int(sum(tracker.history)),
            "minutes": round((time.time() - t0) / 60, 1), "optimised_steps": n_opt,
-           "retries": {str(k): v for k, v in retries.items()}, "args": vars(args), "env_cfg": overrides,
+           "retries": {str(k): v for k, v in retries.items()}, "aborted": aborted, "args": vars(args), "env_cfg": overrides,
            "obj_err_mean_cm": dict(zip(env.obj_ids, (100 * er.mean(0)).round(2).tolist())),
            "obj_err_final_cm": dict(zip(env.obj_ids, (100 * er[-1]).round(2).tolist()))}
     res["task_success"] = res["scene_success"]

@@ -45,7 +45,7 @@ ROT_TILT = ("bowl", "plate", "wineglass", "cup", "pot", "basket", "bottle", "soy
 
 @configclass
 class SpiderEnvCfg(B2DEnvCfg):
-    gate_margin: int = 15
+    gate_margin: int = 13              # residual allowed this many frames around manipulation (user setting 10-06)
     gate_ramp: int = 5
     action_ema: float = 0.8
     wrist_trans_scale: float = 0.05
