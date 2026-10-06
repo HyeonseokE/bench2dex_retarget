@@ -40,7 +40,7 @@ def main():
     info = {"source_episode": str(paths.episode_path(args.task, args.episode)), "source_robot": res3["source"],
             "method": "spider", "seed": res3.get("seed"), "spider_args": res3.get("args"),
             "env_cfg": res3.get("env_cfg"), "record": "state trace of the committed execution"}
-    base = paths.RUNS if args.tag == "spider" else out_dir / args.tag
+    base = paths.RUNS                                   # every attempt that succeeds lands in the dataset tree
     h5, success, payload = recorder.write_episode(trace, args.task, args.episode, base / "dataset",
                                                   {"retarget_info": json.dumps(info)})
     if h5 is None and args.keep_failed:

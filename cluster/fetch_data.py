@@ -3,8 +3,9 @@
 Runs inside the Isaac Sim container (huggingface_hub and yaml come from the setup step).
 
   episodes  Bench2Dex/teleopdata dataset/<task>/origin-generalization/episode_000000..N-1.hdf5
-            (origin = trajectories without images, ~4 MB each). The coupling fit needs a few
-            episodes of every robot's own tasks, which the first episodes of each task cover.
+            (origin = trajectories without images, ~4 MB each), plus episodes 0-4 of one task per
+            hand (06 RH56DFX, 07 RH5DG2, 43 Shadow, 08 Schunk, 21 Wuji): b2dr.coupling fits each
+            target hand's mimic joints on that hand's own demos, whatever task is being retargeted.
   assets    the whole Bench2Dex/Assets repo (~19 GB, once). Retargeting alone needs only the five
             UR5 robots and the task objects, but stage 5 renders with --restore-generalization,
             which rebuilds the recorded backdrop, table texture and clutter distractors.
@@ -31,7 +32,10 @@ for t in TASKS:
         sys.exit(f"FATAL: no Bench2Dex scene for task {t}")
     names.append(hit[0])
 
+COUPLING_TASKS = ["06", "07", "43", "08", "21"]                # one source task per hand
+coupling = [sorted(n for n in scenes if n.startswith(t))[0] for t in COUPLING_TASKS]
 ep_pats = [f"dataset/{n}/origin-generalization/episode_{i:06d}.hdf5" for n in names for i in range(EPISODES)]
+ep_pats += [f"dataset/{n}/origin-generalization/episode_{i:06d}.hdf5" for n in coupling for i in range(5)]
 print(f"[episodes] {len(names)} tasks x {EPISODES} -> {ROOT / 'b2d_origin'}", flush=True)
 snapshot_download("Bench2Dex/teleopdata", repo_type="dataset", allow_patterns=ep_pats,
                   local_dir=str(ROOT / "b2d_origin"), max_workers=8)

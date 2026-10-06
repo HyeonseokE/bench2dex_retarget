@@ -1,24 +1,24 @@
-# One episode, every target robot: stage 1 once, then per target
-#   2 kinematic retarget -> 3 SPIDER plan -> 4 open-loop re-execution recorded as a Bench2Dex
-#   origin episode -> 5 (if 4 succeeded) RGB + tactile render and GT labels, as the released data.
-# Sourced by retarget_array.sbatch with TASK and EPISODE set; no #SBATCH here.
+# One episode, every target robot: stage 1 once, then per target scripts/run_target.py --
+#   stage 2 kinematic retarget -> SPIDER + Bench2Dex record, retried with new seeds / more search until
+#   MetricTracker calls it a success (MAX_ATTEMPTS) -> render like the released replay data -> push the
+#   episode to <ns>/b2d-<scene>-<target>-retargeting on Hugging Face.
+# Sourced by retarget_array.sbatch with TASK and EPISODE set; no #SBATCH here. Every step skips what
+# is already done, so a resubmitted or walltime-killed item resumes.
 #
-# Idempotent: each stage skips when its output exists, so a resubmitted or walltime-killed item
-# picks up where it stopped (a SPIDER run that was interrupted restarts that episode-target).
-#
-#   TARGETS       space-separated robots (default: every robot but the episode's source)
-#   PACK          targets optimised at the same time on this GPU (default 2)
-#   SPIDER_ARGS   extra stage-3 arguments, e.g. "--num_samples 1024 --iters 5"
-#   RECORD_ARGS   extra stage-4 arguments, e.g. --keep_failed
-#   RENDER=0      skip stage 5 (record only)
+#   TARGETS        space-separated robots (default: every robot but the episode's source)
+#   PACK           targets processed at the same time on this GPU (default 2)
+#   MAX_ATTEMPTS   SPIDER attempts per target before the episode is left out (default 5)
+#   SPIDER_ARGS    extra stage-3 arguments for every attempt
+#   UPLOAD=0       keep results local; HF_NAMESPACE / HF_STAGES are read by scripts/upload_hf.py
 
 set +e        # failures are handled per stage; one target failing must not kill the others
 RUN="$WS/b2dr_runs"
 ALL_ROBOTS="rh56dfx rh5dg2 shadow schunk wuji"
 PACK="${PACK:-2}"
+MAX_ATTEMPTS="${MAX_ATTEMPTS:-5}"
 SPIDER_ARGS="${SPIDER_ARGS:-}"
-RECORD_ARGS="${RECORD_ARGS:-}"
-RENDER="${RENDER:-1}"
+UPLOAD="${UPLOAD:-1}"
+export APPTAINERENV_HF_NAMESPACE="${HF_NAMESPACE:-}" APPTAINERENV_HF_STAGES="${HF_STAGES:-origin replay}"
 cd "$REPO_DIR"
 
 stage() {   # stage LOG TIMEOUT_S script args...
@@ -42,23 +42,13 @@ TARGETS="${TARGETS:-$(for r in $ALL_ROBOTS; do [ "$r" = "$SRC" ] || printf '%s '
 echo "=== source $SRC -> targets: $TARGETS (PACK=$PACK) ==="
 
 one_target() {
-  local tgt="$1" log="$HOST_EPDIR/$1/run.log"
+  local tgt="$1"
   mkdir -p "$HOST_EPDIR/$tgt"
-  echo "--- $tgt: stage 2 $(date +%T)" >> "$log"
-  stage "$log" 3600 scripts/stage2_kinematic.py --task "$TASK" --episode "$EPISODE" --target "$tgt" || return 1
-  echo "--- $tgt: stage 3 $(date +%T)" >> "$log"
-  # shellcheck disable=SC2086
-  stage "$log" 64800 scripts/stage3_spider.py --task "$TASK" --episode "$EPISODE" --target "$tgt" $SPIDER_ARGS || return 1
-  echo "--- $tgt: stage 4 $(date +%T)" >> "$log"
-  # shellcheck disable=SC2086
-  stage "$log" 3600 scripts/stage4_record.py --task "$TASK" --episode "$EPISODE" --target "$tgt" $RECORD_ARGS || return 1
-  local rec="$HOST_EPDIR/$tgt/spider_record.json"
-  if [ "$RENDER" = "1" ] && grep -q '"success": true' "$rec"; then
-    local h5; h5="$(grep -o '"episode_hdf5": "[^"]*"' "$rec" | cut -d'"' -f4)"
-    echo "--- $tgt: stage 5 $(date +%T) $h5" >> "$log"
-    timeout --kill-after=60 7200 "${ISAAC[@]}" bash -c \
-      "PY=$PY bash scripts/stage5_render.sh $(dirname "$h5") $(basename "$h5")" >> "$log" 2>&1 || return 1
-  fi
+  local up=""; [ "$UPLOAD" = "1" ] || up="--no_upload"
+  timeout --kill-after=60 172000 "${ISAAC[@]}" env PY="$PY" "$PY" scripts/run_target.py \
+    --task "$TASK" --episode "$EPISODE" --target "$tgt" --max_attempts "$MAX_ATTEMPTS" \
+    --spider_args "$SPIDER_ARGS" $up 2>&1 | grep "^RESULT"
+  grep -q '"state": "\(uploaded\|rendered\)"' "$HOST_EPDIR/$tgt/status.json"
 }
 
 pids=() rc=0
@@ -72,11 +62,7 @@ for p in "${pids[@]}"; do wait "$p" || rc=1; done
 
 echo "=== $TASK ep$EPISODE summary $(date +%T) ==="
 for tgt in $TARGETS; do
-  f="$HOST_EPDIR/$tgt/spider_record.json"
-  if [ -f "$f" ]; then
-    printf '  %-8s %s\n' "$tgt" "$(grep -o '"success": [a-z]*' "$f") $(grep -o '"max": [0-9.]*' "$f") (drift cm)"
-  else
-    printf '  %-8s %s\n' "$tgt" "no result (see $HOST_EPDIR/$tgt/run.log)"
-  fi
+  f="$HOST_EPDIR/$tgt/status.json"
+  printf '  %-8s %s\n' "$tgt" "$( [ -f "$f" ] && grep -o '"state": "[a-z_0-9]*"' "$f" || echo 'no status' )"
 done
 exit "$rc"
