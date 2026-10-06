@@ -1,0 +1,3 @@
+task,episode,target,state,attempts,success
+06_fruit_bowl_loading,ep000,shadow,running,0,False
+06_fruit_bowl_loading,ep001,shadow,running,0,False

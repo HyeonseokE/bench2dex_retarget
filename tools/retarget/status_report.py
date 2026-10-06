@@ -35,10 +35,10 @@ def tail_progress(d: Path) -> str:
 
 def collect(runs: Path):
     rows = []
-    for st in sorted(runs.glob("*/ep[0-9][0-9][0-9]/*/status.json")):
-        d = st.parent
+    for d in sorted({p.parent for pat in ("status.json", "run.log") for p in runs.glob(f"*/ep[0-9][0-9][0-9]/*/{pat}")}):
+        st = d / "status.json"
         try:
-            s = json.load(open(st))
+            s = json.load(open(st)) if st.exists() else {"state": "running"}   # first attempt still in stage 2/3
         except (OSError, ValueError):
             continue
         att = s.get("attempts", [])
