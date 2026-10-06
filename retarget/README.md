@@ -55,6 +55,32 @@ LeRobot v3가 필요하면 Bench2Dex의 `tools/export/convert_bench2dex_to_lerob
 - **성공 판정**은 Bench2Dex `success.evaluate_success_conditions`를 env 0에서 매 프레임 호출한다. `sequence`·`hold_duration`의 상태(ctx)는 스냅샷에 포함되어 backtracking 때 함께 되감긴다.
 - **손끝 정의**(`retarget/robots.py`): 순서는 항상 엄지, 검지, 중지, 약지, 소지다. teleop hand cfg의 tip 바디를 쓰고, 바디가 없는 Schunk는 말단 링크 메시에서 가장 먼 점을 쓴다.
 
+## 로컬 GPU 서버 (SLURM·컨테이너 없음)
+
+```bash
+# 0) 작업 루트(B2D_ROOT) 아래에 fork를 clone. 이 아래에 IsaacLab, assets, b2d_origin, b2dr_runs, envs/b2d가 생긴다
+mkdir -p ~/b2d && cd ~/b2d && git clone https://github.com/HyeonseokE/Bench2Dex.git
+echo <HF 토큰> > ~/.hf_token                     # 익명 다운로드는 Hub rate-limit에 걸린다
+
+# 1) 1회 셋업: conda env(py3.11) + torch 2.7(cu128) + Isaac Sim 5.1(pip) + Isaac Lab v2.3.2, 데이터·에셋 다운로드
+TASKS="06 12 42 07 34 60 43 76 08 44 21 27" bash Bench2Dex/tools/retarget/local/setup.sh --fetch
+
+# 2) 실행: (task, 에피소드, 목표 손) 큐를 GPU에 나눠 돌린다. 중단 후 다시 실행하면 끝난 것은 건너뛴다
+source Bench2Dex/tools/retarget/local/env.sh && cd Bench2Dex
+nohup python tools/retarget/run_queue.py --tasks 12 42 --gpus 0 1 --per_gpu 2 --no_upload > ../b2dr_runs/queue.log 2>&1 &
+
+# 3) 진행상황: 2분마다 갱신
+cat ../b2dr_runs/STATUS.md          # task x 목표 손별 성공/실패/진행중, 진행 중 에피소드의 마지막 이벤트
+cat ../b2dr_runs/results.csv        # (task, 에피소드, 목표)별 상태
+```
+
+- 목표 손 기본값은 소스를 뺀 UR5 손 4종이다(`--targets`로 지정 가능). 에피소드마다 stage 1을 한 번 돌리고, 목표마다
+  `run_target.py`(stage 2 → SPIDER 최대 `--max_attempts`회 → 기록 → 렌더 → 업로드)를 돌린다. `--no_upload`면 로컬에만 남는다.
+- GPU 메모리: SPIDER 1024 샘플 프로세스 하나가 5~6 GB다. 24 GB GPU에서는 `--per_gpu` 3 이하(메모리 부족은 PhysX 상태를 깨뜨린다).
+- 헤드리스 컨테이너에서 Isaac Sim이 Vulkan을 못 찾으면: `apt install libvulkan1` 후 `/usr/share/vulkan/icd.d/nvidia_icd.json`을
+  `{"file_format_version":"1.0.1","ICD":{"library_path":"libEGL_nvidia.so.0","api_version":"1.4.312"}}`로 둔다.
+- 로그: `b2dr_runs/logs/<task>_epNNN_<target>.log`(큐), `b2dr_runs/<scene>/epNNN/<target>/run.log`(단계별).
+
 ## 클러스터 (pro6000, OpenOnDemand)
 
 [`ondemand/README.md`](../ondemand/README.md) 참고.
