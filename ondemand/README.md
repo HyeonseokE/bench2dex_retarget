@@ -22,11 +22,12 @@ OOD Job Composer → New Job → 파일 내용 붙여넣기 → Submit.
 2. git sync — `$HOME/b2d/bench2dex_retarget`에 fork clone 또는 fast-forward (예전 저자 원본 체크아웃이 있으면 fork로 전환)
 3. setup — Isaac Sim 5.1 SIF, Isaac Lab v2.3.2 (`setup.sh`, 최초 1회 약 1시간)
 4. fetch — teleop 에피소드 + 선택 태스크 에셋 (`fetch_data.py`, 있는 건 건너뜀)
-5. submit — (task, episode)당 array 태스크 하나 (`retarget_array.sbatch` → `retarget_body.sh` → `tools/retarget/run_target.py`),
-   array가 끝나면 `finalize.sbatch`가 `tools/retarget/upload_task.py`를 실행한다
+5. submit — 워커 잡 하나(`retarget_worker.sbatch`): pro6000 2장, CUDA MPS, GPU당 `PER_GPU`(10)개 세션 = 20개 동시.
+   (에피소드, 목표 손) 큐를 `tools/retarget/run_queue.py` → `run_target.py`로 처리하고(에피소드마다 stage 1 한 번),
+   끝나면 `finalize.sbatch`가 `tools/retarget/upload_task.py`를 실행한다
 
 각 에피소드는 목표 손별로 MetricTracker 성공이 나올 때까지 `MAX_ATTEMPTS`번 시도한다(로컬과 같은 v2 기본값·시도 스케줄,
-`experiments/stage3_settings.md`). 클러스터에서는 RTX 렌더링을 하지 않고(`RENDER=0`) 기록된 HDF5(origin)만 만든다.
+`experiments/stage3_settings.md`). 클러스터에서는 RTX 렌더링을 하지 않고 기록된 HDF5(origin)만 만든다.
 업로드는 **목표 손별로 소스 50개가 모두 성공했을 때만** 한 번에(50개 + 데이터셋 카드) 한다. 하나라도 빠지면 그 손은 올리지 않고
 빠진 에피소드를 로그에 출력한다. 모든 단계가 멱등이라 다시 던지면 성공한 에피소드는 건너뛰고 실패한 것만 다시 시도한 뒤 다시 업로드를 판정한다.
 
@@ -38,9 +39,9 @@ OOD Job Composer → New Job → 파일 내용 붙여넣기 → Submit.
 | `EPISODES` | `50` | 소스 에피소드 수 |
 | `TARGETS` | 소스 외 4종 | 예: `"shadow wuji"` |
 | `MAX_ATTEMPTS` | `5` | (에피소드, 목표)당 SPIDER 시도 횟수 |
-| `PACK` / `MAX_GPUS` | `4` / `2` | GPU당 동시 목표 수 / 동시 GPU 수 |
+| `PER_GPU` | `10` | GPU당 동시 세션 수 (2장 → 20개) |
+| `MPS_ON` | `1` | CUDA MPS 데몬을 잡 안에서 켬 (노드에 `nvidia-cuda-mps-control`이 없으면 경고 후 MPS 없이 실행) |
 | `SPIDER_ARGS` | 없음 (= v2) | stage 3 추가 인자. 비워 두면 v2 기본값 |
-| `RENDER` | `0` | `1`이면 stage 5 렌더링도 (RTX 렌더링이 되는 곳에서만) |
 | `UPLOAD` · `HF_NAMESPACE` · `HF_STAGES` | `1` · 토큰 사용자 · `origin` | 업로드 설정 (`UPLOAD=0`이면 finalize 생략) |
 
 ## HF 출력
@@ -49,7 +50,7 @@ OOD Job Composer → New Job → 파일 내용 붙여넣기 → Submit.
 
 ```
 dataset/<scene>/<target>/origin-generalization/episode_NNNNNN.hdf5   # 상태·액션·지표 (렌더 없음) -- 클러스터 기본
-dataset/<scene>/<target>/replay-generalization/episode_NNNNNN.hdf5   # origin + RGB 6대·TacMap·라벨 -- RENDER=1, HF_STAGES="origin replay" 
+dataset/<scene>/<target>/replay-generalization/episode_NNNNNN.hdf5   # origin + RGB 6대·TacMap·라벨 -- 렌더링이 되는 곳에서만 (클러스터 아님)
 ```
 
 ## 파일
@@ -59,7 +60,7 @@ dataset/<scene>/<target>/replay-generalization/episode_NNNNNN.hdf5   # origin + 
 | `env.sh` | 경로(`$HOME/b2d` → 컨테이너 `/workspace`), apptainer 래퍼(`ISAAC`), 토큰, `sync_repo` |
 | `setup.sh` | SIF 빌드, Isaac Lab 설치, python 의존성 (1회) |
 | `fetch_data.py` | HF `Bench2Dex/teleopdata` origin 에피소드 + coupling용 에피소드 + 에셋 |
-| `retarget_array.sbatch` / `retarget_body.sh` | array 런처 / (task, ep) 하나: stage 1 → 목표별 `run_target.py` |
+| `retarget_worker.sbatch` | 2 GPU 워커: MPS 시작, GPU id 확인, `run_queue.py` 실행, 끝에 손별 50/50 여부 출력 |
 | `finalize.sbatch` | 손별 업로드 판정(50/50일 때만 HDF5 + 카드 업로드) |
 | `checks/` | `env_check.sbatch`가 쓰는 L1/L3/L4 점검 스크립트 |
 

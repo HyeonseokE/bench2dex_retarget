@@ -9,10 +9,10 @@
 #                 pipeline is its ondemand/ folder; Bench2Dex itself comes with it)
 #   3. setup      Isaac Sim 5.1 SIF, Isaac Lab v2.3.2 (once; ~1 h the first time)
 #   4. fetch      teleop episodes + the assets of the selected tasks (skips what is already there)
-#   5. submit     one array task per (task, episode); each retargets that episode onto every
-#                 other robot (SPIDER v2) until MetricTracker calls it a success and records it as
-#                 Bench2Dex HDF5 (ondemand/retarget_array.sbatch -> ondemand/retarget_body.sh ->
-#                 tools/retarget/run_target.py; no rendering on the cluster); then, after the array,
+#   5. submit     ONE worker job on 2 pro6000 GPUs with CUDA MPS, PER_GPU (10) sessions per GPU = 20 at
+#                 once, working through every (episode, target hand) of the task: SPIDER v2 until
+#                 MetricTracker calls it a success, recorded as Bench2Dex HDF5 (ondemand/retarget_worker.sbatch
+#                 -> tools/retarget/run_queue.py -> run_target.py; no rendering on the cluster); then, after it,
 #                 ondemand/finalize.sbatch pushes a target's HDF5 to <ns>/b2d-<scene>-<robot>-retargeting
 #                 ONLY if all EPISODES source episodes succeeded for that target
 #
@@ -25,7 +25,7 @@
 #
 # Knobs (sbatch --export=ALL,KNOB=value, or edit the defaults below):
 #   TASKS="07"  EPISODES=50  TARGETS="shadow wuji" (default: all but the source)  MAX_ATTEMPTS=5
-#   PACK=4 (targets at once per GPU)  MAX_GPUS=2  SPIDER_ARGS="" (v2)  UPLOAD=1  RENDER=0
+#   PER_GPU=10 (sessions per GPU, 2 GPUs)  MPS_ON=1  SPIDER_ARGS="" (v2)  UPLOAD=1
 #   HF_NAMESPACE (default: the token's user)  HF_STAGES="origin"
 #
 #SBATCH --job-name=b2dr-main
@@ -44,7 +44,6 @@ echo "=== b2dr-main start: $(date) on $(hostname) ==="
 REPO_URL="${REPO_URL:-https://github.com/HyeonseokE/bench2dex_retarget.git}"   # the fork; this pipeline is its ondemand/
 export TASKS="${TASKS:-07}"          # one task per submission (06 12 42 07 34 60 43 76 08 44 21 27)
 export EPISODES="${EPISODES:-50}"
-MAX_GPUS="${MAX_GPUS:-2}"
 
 echo "=== [1/5] preflight ==="
 [ -s "$HOME/.hf_token" ] || { echo "FATAL: ~/.hf_token missing or empty. Create it in the OOD Files app."; exit 1; }
@@ -89,22 +88,14 @@ if [ "$RUNNING" -gt 0 ]; then
   squeue -u "$USER" -o '%.12i %.20j %.10T %.12M' | grep -E 'JOBID|b2dr-retarget'
   exit 1
 fi
-WORKLIST="$REPO_DIR/results/worklist_${SLURM_JOB_ID:-manual}.txt"
-: > "$WORKLIST"
 for t in $TASKS; do
-  d="$(ls -d "$WS/b2d_origin/dataset/${t}"*/origin-generalization 2>/dev/null | head -1)"
-  [ -n "$d" ] || { echo "[warn] no episodes for task $t"; continue; }
-  for e in $(seq 0 $(( EPISODES - 1 ))); do
-    [ -f "$d/episode_$(printf %06d "$e").hdf5" ] && echo "$t $e" >> "$WORKLIST"
-  done
+  n="$(ls "$WS/b2d_origin/dataset/${t}"*/origin-generalization/episode_*.hdf5 2>/dev/null | wc -l)"
+  [ "$n" -ge "$EPISODES" ] || { echo "FATAL: task $t has $n of $EPISODES source episodes locally"; exit 1; }
 done
-N="$(wc -l < "$WORKLIST")"
-[ "$N" -gt 0 ] || { echo "FATAL: empty worklist"; exit 1; }
-echo "$N items -> $WORKLIST"
-ARRAY="$(sbatch --parsable --array="0-$(( N - 1 ))%$MAX_GPUS" --export=ALL,WORKLIST="$WORKLIST" "$CODE_DIR/retarget_array.sbatch")"
-echo "array job $ARRAY"
+WORKER="$(sbatch --parsable --export=ALL "$CODE_DIR/retarget_worker.sbatch")"
+echo "worker job $WORKER: 2 GPUs, MPS, ${PER_GPU:-10} sessions per GPU"
 if [ "${UPLOAD:-1}" = "1" ]; then
-  sbatch --dependency="afterany:${ARRAY%%;*}" --export=ALL "$CODE_DIR/finalize.sbatch"
+  sbatch --dependency="afterany:${WORKER}" --export=ALL "$CODE_DIR/finalize.sbatch"
 fi
 squeue -u "$USER" -o '%.12i %.20j %.10T %.10M %.20E'
 echo "=== b2dr-main done: $(date) ==="

@@ -47,6 +47,10 @@ def main():
     ap.add_argument("--spider_args", default="")
     ap.add_argument("--no_render", action="store_true")
     ap.add_argument("--no_upload", action="store_true")
+    ap.add_argument("--retry_failed", action="store_true",
+                    help="also re-run targets that ended failed_all_attempts (new attempts if --max_attempts grew)")
+    ap.add_argument("--no_report", action="store_true",
+                    help="do not write experiments/ (cluster: keeps the git checkout clean for git pull)")
     ap.add_argument("--dry_run", action="store_true")
     a = ap.parse_args()
 
@@ -57,9 +61,11 @@ def main():
     logdir = paths.RUNS / "logs"
     logdir.mkdir(parents=True, exist_ok=True)
     threads = []
-    if not a.dry_run:
+    report = not (a.dry_run or a.no_report)
+    if report:
         subprocess.run([py, str(HERE / "init_experiments.py")])
-    reporter = subprocess.Popen([py, str(HERE / "status_report.py"), "--loop", "120"]) if not a.dry_run else None
+    reporter = subprocess.Popen([py, str(HERE / "status_report.py"), "--loop", "120"]) if report else None
+    final = FINAL - {"failed_all_attempts"} if a.retry_failed else FINAL
 
     def acquire():
         with lock:
@@ -111,9 +117,9 @@ def main():
                     log(f"stage 1 failed for {task} ep{ep} (see logs/)")
                     continue
             src = json.load(open(ref)).get("source")
-            for tgt in (a.targets or [r for r in ALL_ROBOTS if r != src]):
+            for tgt in [r for r in (a.targets or ALL_ROBOTS) if r != src]:   # never the source hand
                 st = epdir / tgt / "status.json"
-                if st.exists() and json.load(open(st)).get("state") in FINAL:
+                if st.exists() and json.load(open(st)).get("state") in final:
                     continue
                 if a.dry_run:
                     log(f"would run {task} ep{ep} {src} -> {tgt}")
