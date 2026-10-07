@@ -16,6 +16,9 @@ stage3_spider:
   gate_look: 30
   drop_jump: 0.025
   settle: 40
+  resume: ''
+  ckpt_margin: 10
+  ckpt_err: 0.04
 spider_env:
   gate_margin: 15
   gate_ramp: 5
