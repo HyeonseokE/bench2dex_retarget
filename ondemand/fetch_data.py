@@ -18,15 +18,42 @@ rate-limited by the Hub).
 
 import os
 import sys
+import threading
+import time
 from pathlib import Path
 
-from huggingface_hub import snapshot_download
+from huggingface_hub import HfApi, snapshot_download
 
 ROOT = Path(os.environ.get("B2D_ROOT", "/workspace"))
 TASKS = os.environ["TASKS"].split()
 EPISODES = int(os.environ.get("EPISODES", "50"))
 
-scenes = {p.stem: p for p in (ROOT / "Bench2Dex" / "scenes").glob("*.yaml")}
+scenes = {p.stem: p for p in (Path(__file__).resolve().parents[1] / "scenes").glob("*.yaml")}   # this repo
+
+
+def progress(path: Path, stop: threading.Event, every: int = 60):
+    """Progress bars are off in SLURM logs; print the bytes on disk under `path` every minute instead."""
+    t0, last = time.time(), None
+    while not stop.wait(every):
+        n = sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
+        rate = "" if last is None else f", {(n - last) / every / 2**20:.1f} MB/s"
+        print(f"  [{path.name}] {n / 2**30:.2f} GB on disk after {(time.time() - t0) / 60:.0f} min{rate}", flush=True)
+        last = n
+
+
+def fetch(repo: str, dest: Path, **kw):
+    stop = threading.Event()
+    threading.Thread(target=progress, args=(dest, stop), daemon=True).start()
+    try:
+        snapshot_download(repo, repo_type="dataset", local_dir=str(dest), max_workers=8, **kw)
+    finally:
+        stop.set()
+
+
+try:
+    print(f"[hf] authenticated as {HfApi().whoami()['name']}", flush=True)
+except Exception as e:  # noqa: BLE001
+    print(f"[hf] WARNING: not authenticated ({type(e).__name__}); downloads will be slow / rate-limited", flush=True)
 names = []
 for t in TASKS:
     hit = sorted(n for n in scenes if n.startswith(t))
@@ -39,11 +66,10 @@ coupling = [sorted(n for n in scenes if n.startswith(t))[0] for t in COUPLING_TA
 ep_pats = [f"dataset/{n}/origin-generalization/episode_{i:06d}.hdf5" for n in names for i in range(EPISODES)]
 ep_pats += [f"dataset/{n}/origin-generalization/episode_{i:06d}.hdf5" for n in coupling for i in range(5)]
 print(f"[episodes] {len(names)} tasks x {EPISODES} -> {ROOT / 'b2d_origin'}", flush=True)
-snapshot_download("Bench2Dex/teleopdata", repo_type="dataset", allow_patterns=ep_pats,
-                  local_dir=str(ROOT / "b2d_origin"), max_workers=8)
+fetch("Bench2Dex/teleopdata", ROOT / "b2d_origin", allow_patterns=ep_pats)
 
 print(f"[assets] Bench2Dex/Assets (all) -> {ROOT / 'assets'}", flush=True)
-snapshot_download("Bench2Dex/Assets", repo_type="dataset", local_dir=str(ROOT / "assets"), max_workers=8)
+fetch("Bench2Dex/Assets", ROOT / "assets")
 
 missing = [str(p) for n in names for i in range(EPISODES)
            if not (p := ROOT / "b2d_origin" / "dataset" / n / "origin-generalization" / f"episode_{i:06d}.hdf5").exists()]
