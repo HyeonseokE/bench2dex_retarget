@@ -22,12 +22,13 @@
 # Everything after step 2 is read from the pulled fork, so edits to retarget/, tools/retarget/ and
 # ondemand/*.sh only need a push. Only an edit to THIS file needs re-pasting.
 #
-# Intended use: ONE TASK PER SUBMISSION, all 50 source episodes -- TASKS="07" (edit below). Resubmitting
-# is always safe: finished stages and successful episodes are skipped (failed ones get new attempts),
-# and a second b2dr-main of the same user refuses to start.
+# Intended use: submit ONCE; the tasks of TASK_QUEUE (edit below) run one after another, one job each,
+# all 50 source episodes. Resubmitting is always safe: finished stages and successful episodes are
+# skipped (failed ones get new attempts); a job that starts while another b2dr job runs requeues itself
+# behind it. To stop the chain, cancel the running job AND the queued one.
 #
 # Knobs (sbatch --export=ALL,KNOB=value, or edit the defaults below):
-#   TASKS="07"  EPISODES=50  TARGETS="shadow wuji" (default: all but the source)  MAX_ATTEMPTS=5
+#   TASK_QUEUE="12 42 34 60 43 76 08 21 27"  (TASKS="07" runs one task alone)  EPISODES=50  TARGETS="shadow wuji" (default: all but the source)  MAX_ATTEMPTS=5
 #   PER_GPU=10 (sessions per GPU, 2 GPUs)  MPS_ON=1  SPIDER_ARGS="" (v2)  UPLOAD=1
 #   HF_NAMESPACE (default: the token's user)  HF_STAGES="origin"
 #
@@ -45,8 +46,28 @@ export USER="${USER:-$(id -un)}"
 echo "=== b2dr-main start: $(date) on $(hostname) ==="
 
 REPO_URL="${REPO_URL:-https://github.com/HyeonseokE/bench2dex_retarget.git}"   # the fork; this pipeline is its ondemand/
-export TASKS="${TASKS:-07}"          # one task per submission (06 12 42 07 34 60 43 76 08 44 21 27)
+# Tasks run one per job, in this order: this job takes the first, and right at its start queues the
+# next job for the rest (--dependency=afterany on this one), so the chain keeps going even if a task fails
+# or hits the walltime, and the next job is already waiting in the queue when this one ends.
+ALONE=0; [ -n "${TASKS:-}" ] && [ -z "${TASK_QUEUE:-}" ] && ALONE=1      # TASKS=07 alone: no chain
+TASK_QUEUE="${TASK_QUEUE:-12 42 34 60 43 76 08 21 27}"
+export TASKS="${TASKS:-${TASK_QUEUE%% *}}"
+REST="$(echo " $TASK_QUEUE " | sed "s/ $TASKS / /" | xargs)"
+[ "$ALONE" = 1 ] && REST=""
 export EPISODES="${EPISODES:-50}"
+echo "task $TASKS now; queued after it: [${REST:-none}]"
+
+# One b2dr job at a time: if another is running, wait for it (requeue this one behind it) instead of
+# racing it for the node and the results tree.
+BUSY="$(squeue -h -u "$USER" -t R -o '%i %j' 2>/dev/null | awk -v me="${SLURM_JOB_ID:-0}" '$1 != me && $2 ~ /^b2dr-(main|retarget)/ {print $1}' | head -1)"
+if [ -n "$BUSY" ]; then
+  SELF="$(scontrol show job "${SLURM_JOB_ID:-0}" 2>/dev/null | grep -o 'Command=[^ ]*' | cut -d= -f2)"
+  [ -r "$SELF" ] || SELF="$0"                      # this very file (the pasted one), not an older checkout
+  NEXT="$(sbatch --parsable --chdir="${SLURM_SUBMIT_DIR:-$PWD}" --dependency="afterany:$BUSY" \
+          --export=ALL,TASK_QUEUE="$TASK_QUEUE",TASKS="$TASKS" "$SELF")"
+  echo "b2dr job $BUSY is running: requeued as job $NEXT after it; exiting"
+  exit 0
+fi
 
 echo "=== [1/6] preflight ==="
 [ -s "$HOME/.hf_token" ] || { echo "FATAL: ~/.hf_token missing or empty. Create it in the OOD Files app."; exit 1; }
@@ -74,6 +95,11 @@ fi
 # shellcheck source=/dev/null
 source "$B/ondemand/env.sh"
 echo "Bench2Dex fork @ $(GIT -C "$REPO_DIR" rev-parse --short HEAD)"
+if [ -n "$REST" ]; then      # queue the next task now (from the freshly pulled copy of this file)
+  NEXT="$(sbatch --parsable --chdir="${SLURM_SUBMIT_DIR:-$PWD}" --dependency="afterany:${SLURM_JOB_ID}" \
+          --export=ALL,TASK_QUEUE="$REST",TASKS="${REST%% *}" "$CODE_DIR/main_job.sbatch")"
+  echo "next task ${REST%% *} queued as job $NEXT (runs after this one); then [$(echo " $REST " | sed "s/ ${REST%% *} / /" | xargs)]"
+fi
 
 echo "=== [3/6] setup ==="
 # shellcheck source=/dev/null
@@ -84,12 +110,6 @@ export APPTAINERENV_TASKS="$TASKS" APPTAINERENV_EPISODES="$EPISODES"
 "${ISAAC[@]}" "$PY" ondemand/fetch_data.py
 
 echo "=== [5/6] retarget (this job, 2 GPUs) ==="
-OTHERS="$(squeue -h -u "$USER" -o '%i %j' 2>/dev/null | awk -v me="${SLURM_JOB_ID:-0}" '$1 != me && $2 ~ /^b2dr-(main|retarget)/' | wc -l)"
-if [ "$OTHERS" -gt 0 ]; then
-  echo "FATAL: another b2dr-main / b2dr-retarget job is queued or running; stop it first (both would write the same results):"
-  squeue -u "$USER" -o '%.12i %.20j %.10T %.12M' | grep -E 'JOBID|b2dr-'
-  exit 1
-fi
 for t in $TASKS; do
   n="$(ls "$WS/b2d_origin/dataset/${t}"*/origin-generalization/episode_*.hdf5 2>/dev/null | wc -l)"
   [ "$n" -ge "$EPISODES" ] || { echo "FATAL: task $t has $n of $EPISODES source episodes locally"; exit 1; }
