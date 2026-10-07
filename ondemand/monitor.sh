@@ -22,6 +22,8 @@ while true; do
     echo
     echo "updated $(date '+%F %T')  ·  job ${SLURM_JOB_ID:-?} on $(hostname -s)  ·  log \`$LOG\`"
     echo
+    echo "HDF5 (successful episodes): \`$REPO/results/dataset/<target>/<scene>/origin-generalization/\`"
+    echo
     echo "## items finished: $fin (recorded $ok, failed $bad)"
     echo
     if [ -f "$REPORT" ]; then grep -E '^Total|^\|' "$REPORT"; else echo "(report not written yet)"; fi

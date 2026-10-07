@@ -24,3 +24,4 @@ for t in ${TASKS:?}; do
   "${ISAAC[@]}" "$PY" tools/retarget/upload_task.py --task "$t" --episodes "${EPISODES:-50}" \
     ${TARGETS:+--targets "$TARGETS"} || echo "[info] task $t: not every target complete, see above"
 done
+bash "$CODE_DIR/outputs_note.sh" || true     # refresh OUTPUTS.md (paths + episode counts) in the job folder

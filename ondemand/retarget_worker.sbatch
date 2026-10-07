@@ -71,6 +71,7 @@ echo "sessions use CUDA_VISIBLE_DEVICES in [$GPUS], $PER_GPU per GPU, MPS=$MPS"
 # progress report (STATUS.md per task x target, refreshed every 2 min) into results/report/ -- not the
 # tracked experiments/, so the checkout stays clean for git pull. ondemand/monitor.sh summarises it.
 export APPTAINERENV_B2DR_EXPERIMENTS=/workspace/bench2dex_retarget/results/report
+bash "$CODE_DIR/outputs_note.sh" || true     # OUTPUTS.md in the job folder: where the HDF5 files go
 MYLOG="$(scontrol show job "${SLURM_JOB_ID:-0}" 2>/dev/null | grep -o 'StdOut=[^ ]*' | cut -d= -f2)"
 bash "$CODE_DIR/monitor.sh" "${MYLOG:-/dev/null}" "${MONITOR_S:-300}" &
 MON=$!
