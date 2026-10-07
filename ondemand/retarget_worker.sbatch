@@ -2,6 +2,8 @@
 # One job, two pro6000 GPUs, CUDA MPS on, PER_GPU (default 10) retargeting sessions per GPU at once.
 # Submitted by ondemand/main_job.sbatch -- do not paste this one.
 #
+# Progress: bash ondemand/status.sh on the login node (jobs, results/report/STATUS.md, GPUs, MPS).
+#
 # Runs tools/retarget/run_queue.py inside the Isaac Sim container: a queue of (episode, target hand)
 # items of $TASKS, 0..EPISODES-1, onto every hand but the source; each item is tools/retarget/run_target.py
 # (stage 2, SPIDER with the v2 defaults and attempt schedule, Bench2Dex HDF5 record; no rendering, no
@@ -64,10 +66,13 @@ echo "sessions use CUDA_VISIBLE_DEVICES in [$GPUS], $PER_GPU per GPU, MPS=$MPS"
 [ "$MPS" = 1 ] && echo "get_server_list" | nvidia-cuda-mps-control || true
 
 # ------------------------------------------------------------------ queue
+# progress report (STATUS.md per task x target, refreshed every 2 min) into results/report/ -- not the
+# tracked experiments/, so the checkout stays clean for git pull. Read it with ondemand/status.sh.
+export APPTAINERENV_B2DR_EXPERIMENTS=/workspace/bench2dex_retarget/results/report
 "${ISAAC[@]}" env PY="$PY" "$PY" tools/retarget/run_queue.py --tasks $TASKS \
   --episodes $(seq 0 $(( EPISODES - 1 ))) ${TARGETS:+--targets $TARGETS} \
   --gpus $GPUS --per_gpu "$PER_GPU" --max_attempts "$MAX_ATTEMPTS" --spider_args "${SPIDER_ARGS:-}" \
-  --no_render --no_upload --no_report --retry_failed
+  --no_render --no_upload --retry_failed
 
 echo "=== summary $(date) ==="
 for t in $TASKS; do

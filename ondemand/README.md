@@ -31,6 +31,11 @@ OOD Job Composer → New Job → 파일 내용 붙여넣기 → Submit.
 업로드는 **목표 손별로 소스 50개가 모두 성공했을 때만** 한 번에(50개 + 데이터셋 카드) 한다. 하나라도 빠지면 그 손은 올리지 않고
 빠진 에피소드를 로그에 출력한다. 모든 단계가 멱등이라 다시 던지면 성공한 에피소드는 건너뛰고 실패한 것만 다시 시도한 뒤 다시 업로드를 판정한다.
 
+## 진행 확인
+
+로그인 노드(OOD 셸)에서 `bash ~/b2d/bench2dex_retarget/ondemand/status.sh`. 잡 목록, (태스크, 손)별 성공·실패·진행 수
+(`results/report/STATUS.md`, 2분마다 갱신), 워커 로그의 최근 시작·종료와 오류, 노드의 GPU 메모리·세션 수·MPS 상태·`/tmp` 여유를 보여 준다.
+
 ## 조절 (`sbatch --export=ALL,KNOB=값` 또는 sbatch 상단 기본값 수정)
 
 | knob | 기본 | 의미 |
@@ -61,6 +66,7 @@ dataset/<scene>/<target>/replay-generalization/episode_NNNNNN.hdf5   # origin + 
 | `setup.sh` | SIF 빌드, Isaac Lab 설치, python 의존성 (1회) |
 | `fetch_data.py` | HF `Bench2Dex/teleopdata` origin 에피소드 + coupling용 에피소드 + 에셋 |
 | `retarget_worker.sbatch` | 2 GPU 워커: MPS 시작, GPU id 확인, `run_queue.py` 실행, 끝에 손별 50/50 여부 출력 |
+| `status.sh` | 진행 확인 (제출하지 않고 로그인 노드에서 실행) |
 | `finalize.sbatch` | 손별 업로드 판정(50/50일 때만 HDF5 + 카드 업로드) |
 | `checks/` | `env_check.sbatch`가 쓰는 L1/L3/L4 점검 스크립트 |
 
