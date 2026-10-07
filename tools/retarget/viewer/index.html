@@ -106,6 +106,8 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .prog .pbar i { display: block; height: 100%; background: var(--tgt); }
 .prog .row { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--ink-2); font-size: 12px; }
 .prog .warn { color: var(--bad); }
+.prog table td, .prog table th { font-size: 12px; padding: 2px 6px; }
+.prog .ok { color: var(--good); } .prog .no { color: var(--bad); }
 .prog ul { margin: 0; padding-left: 16px; font-family: var(--f-mono); font-size: 11.5px; color: var(--ink-2); }
 .chip { font-size: 11px; padding: 1px 6px; border-radius: 10px; border: 1px solid var(--line); color: var(--ink-2); }
 .chip.ok { border-color: var(--good); color: var(--good); }
@@ -238,8 +240,10 @@ const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n
 const FINGERS = ["엄지", "검지", "중지", "약지", "소지"];
 const OBJ_VARS = ["--obj-4", "--obj-1", "--obj-2", "--obj-3", "--obj-5", "--obj-6"];
 const STATE_KO = { running: "진행 중", retrying: "재시도 중", recorded: "성공 · 기록", rendered: "성공 · 렌더",
-  uploaded: "성공 · 업로드", failed_all_attempts: "실패", stage2_failed: "stage 2 실패", render_failed: "렌더 실패" };
-const OK_STATES = new Set(["recorded", "rendered", "uploaded"]);
+  uploaded: "성공 · 업로드", failed_all_attempts: "실패", stage2_failed: "stage 2 실패", render_failed: "성공 · 렌더 실패" };
+const OK_STATES = new Set(["recorded", "rendered", "uploaded", "render_failed"]);
+// success = a SPIDER run passed Bench2Dex (the state can still say render_failed: rendering crashes on this server)
+const isOk = (t) => !!t && (t.runs.some(r => r.task_success) || OK_STATES.has(t.state));
 
 // float16 -> float32
 const F16 = (() => {
@@ -519,7 +523,7 @@ function epStats(e) {
 }
 function runResult(t) {
   if (!t) return { k: "run", s: "—" };
-  if (OK_STATES.has(t.state)) return { k: "ok", s: "성공" };
+  if (isOk(t)) return { k: "ok", s: "성공" };
   if (t.state === "failed_all_attempts" || t.state === "stage2_failed") return { k: "no", s: "실패" };
   const p = t.progress && !t.progress.done ? t.progress : null;
   return { k: "run", s: p ? `${p.frame}/${p.T}` : t.runs.length ? `시도 ${t.runs.length}` : "진행" };
@@ -532,7 +536,7 @@ function renderHeader() {
     <span><i class="sw" style="background:var(--tgt)"></i>목표 · ${hand(S.tgt)}</span>` +
     s.objects.map((o, i) => `<span><i class="sw" style="background:${objColor(i)}"></i>${o.label}</span>`).join("");
   $("tabs").innerHTML = s.targets.map(t => {
-    const ok = s.episodes.filter(e => e.targets[t.name] && OK_STATES.has(e.targets[t.name].state)).length;
+    const ok = s.episodes.filter(e => isOk(e.targets[t.name])).length;
     const r = runResult(s.episodes[0].targets[t.name]);
     return `<button role="tab" data-t="${t.name}" class="${t.name === S.tgt ? "on" : ""}" aria-selected="${t.name === S.tgt}">${t.label}<span class="st">성공 ${ok}/${s.episodes.length}${r.k === "run" ? ` · ${r.s}` : ""}</span></button>`;
   }).join("");
@@ -545,7 +549,7 @@ function renderTiles() {
   const meanAll = mean(ts.map(t => (t.kin.right.tip_err_mean_mm + t.kin.left.tip_err_mean_mm) / 2));
   const contact = mean(ts.map(t => ((t.kin.right.tip_err_contact_mm ?? 0) + (t.kin.left.tip_err_contact_mm ?? 0)) / 2));
   const p95 = eps.length ? Math.max(...eps.map(e => epStats(e).p95)) : null;
-  const ok = ts.filter(t => OK_STATES.has(t.state)).length, fail = ts.filter(t => runResult(t).k === "no").length;
+  const ok = ts.filter(isOk).length, fail = ts.filter(t => runResult(t).k === "no").length;
   const pend = ts.length - ok - fail, nRuns = ts.reduce((s, t) => s + t.runs.length, 0);
   $("tiles").innerHTML = `
     <div class="tile"><div class="k">에피소드</div><div class="v">${eps.length}</div><div class="n">${hand(S.summary.source.name)} 원본 텔레옵 데모</div></div>
@@ -583,8 +587,8 @@ function renderEpPanel() {
 }
 function fillSources() {
   const t = tgtEntry(), items = t ? t.runs : [];
-  $("src").innerHTML = `<option value="kin">참조 애니메이션 · 기구학 FK (물리 없음)</option>` + items.map(r =>
-    `<option value="${r.file}">${r.label} — ${r.task_success ? "성공" : "실패"}</option>`).join("");
+  $("src").innerHTML = `<option value="kin">① 참조 영상 · 기구학 retargeting 경로 (물리 없음, 물체는 데모 궤적)</option>` + items.map(r =>
+    `<option value="${r.file}">${r.label} — ${r.task_success ? "성공" : "실패"} (${r.score}/${r.n_conditions})</option>`).join("");
   $("src").value = S.simMeta && items.some(r => r.file === S.simMeta.file) ? S.simMeta.file : "kin";
 }
 function renderRuns() {
@@ -606,7 +610,21 @@ function renderRuns() {
     $("runs").innerHTML = live || `<div class="note">아직 끝난 SPIDER 시도가 없습니다. 상태: <b>${t ? (STATE_KO[t.state] || t.state) : "—"}</b>.</div>`;
     return;
   }
-  $("runs").innerHTML = live + t.runs.map(r => `<button class="run ${S.simMeta && S.simMeta.file === r.file ? "on" : ""}" data-file="${r.file}">
+  const kr = t.runs.find(r => r.tag === "kinreplay"), sp = t.runs.filter(r => r.tag !== "kinreplay");
+  const best = sp.find(r => r.task_success) || sp[sp.length - 1];
+  let cmp = "";
+  if (kr && best) {
+    const ids = Object.keys(best.obj_err_final_cm || {});
+    const cell = (v) => v == null ? "—" : `<span class="${v > 4 ? "no" : "ok"}">${v.toFixed(1)}</span>`;
+    cmp = `<div class="prog"><b>② Kinematic retargeting vs ③ SPIDER (최종 상태)</b>
+      <table><thead><tr><th>물체 오차 cm</th><th>② kinematic</th><th>③ SPIDER</th></tr></thead><tbody>
+      ${ids.map(k => `<tr><td>${objLabel(k)}</td><td>${cell((kr.obj_err_final_cm || {})[k])}</td><td>${cell(best.obj_err_final_cm[k])}</td></tr>`).join("")}
+      <tr><td>Bench2Dex 조건</td><td>${kr.score}/${kr.n_conditions}</td><td>${best.score}/${best.n_conditions}</td></tr>
+      <tr><td>판정</td><td><span class="${kr.task_success ? "ok" : "no"}">${kr.task_success ? "성공" : "실패"}</span></td><td><span class="${best.task_success ? "ok" : "no"}">${best.task_success ? "성공" : "실패"}</span></td></tr>
+      </tbody></table>
+      <div class="row">②는 기구학 관절 경로를 물리에서 그대로 실행한 결과(물체는 손 접촉으로만 움직임), ③은 그 경로를 SPIDER가 물리 피드백으로 보정한 결과입니다.</div></div>`;
+  }
+  $("runs").innerHTML = live + cmp + t.runs.map(r => `<button class="run ${S.simMeta && S.simMeta.file === r.file ? "on" : ""}" data-file="${r.file}">
       <span class="lbl">${r.label}</span><span class="sc ${r.task_success ? "ok" : "no"}">${r.task_success ? "성공 ✓" : "실패"} · ${r.score}/${r.n_conditions}</span>
       <span class="chips">${Object.entries(r.conditions).map(([k, v]) => `<span class="chip ${v ? "ok" : "no"}">${v ? "✓" : "✗"} ${k}</span>`).join("")}</span>
       <span class="note2">${[r.minutes != null ? `${r.minutes}분` : "", r.stable_frame != null ? `안정 성공 프레임 ${r.stable_frame}` : "안정 성공 없음", r.note].filter(Boolean).join(" · ")}</span>
@@ -615,7 +633,7 @@ function renderRuns() {
 }
 function renderPipeline() {
   const ts = S.summary.episodes.map(e => e.targets[S.tgt]).filter(Boolean);
-  const nRun = ts.reduce((s, t) => s + t.runs.length, 0), ok = ts.filter(t => OK_STATES.has(t.state)).length;
+  const nRun = ts.reduce((s, t) => s + t.runs.length, 0), ok = ts.filter(isOk).length;
   const rendered = ts.filter(t => t.state === "rendered" || t.state === "uploaded").length;
   const card = (st, cls, title, body) => `<div class="step"><span class="st ${cls}">${st}</span><h3>${title}</h3>${body}</div>`;
   $("pipeline").innerHTML =

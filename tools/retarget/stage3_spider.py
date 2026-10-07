@@ -61,6 +61,9 @@ ap.add_argument("--no_hold_pass", action="store_true")
 ap.add_argument("--max_frames", type=int, default=0, help="debug: stop the episode early (result not saved as final)")
 ap.add_argument("--tag", default="spider", help="output name: <tag>.json / <tag>_rollout.npz")
 ap.add_argument("--seed", type=int, default=0, help="MPPI sampling seed (recorded in the result)")
+ap.add_argument("--resume", default="", help="checkpoint (<tag>_ckptN.pt) of an earlier attempt to continue from")
+ap.add_argument("--ckpt_margin", type=int, default=10, help="frames after a manipulation segment ends before checkpointing")
+ap.add_argument("--ckpt_err", type=float, default=0.04, help="m; every object handled so far must be this close to the demo")
 AppLauncher.add_app_launcher_args(ap)
 args = ap.parse_args()
 app = AppLauncher(args).app
@@ -152,7 +155,11 @@ def main():
     if args.max_frames:
         env.T = min(env.T, args.max_frames)
     T, dev, A = env.T, env.device, env.n_act
-    if not args.no_hold_pass:
+    ck = torch.load(args.resume, map_location="cpu", weights_only=False) if args.resume else None
+    if ck is not None:                               # the reference the checkpointed run optimised against
+        env.ref_q[:], env.ref_tips[:], env.ref_wrist[:] = (ck["ref"][k].to(dev) for k in ("q", "tips", "wrist"))
+        print(f"  resume from {args.resume}: frame {ck['frame']}, segment {ck['seg']} of {ck['tag']}", flush=True)
+    elif not args.no_hold_pass:
         hold_pass(env)
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
@@ -185,8 +192,46 @@ def main():
         trace.append({"state": subs[-1], "substeps": subs, "cmd": None})
         record(cmd)
 
-    trace.append({"state": recorder.capture(env), "substeps": [], "cmd": None})
-    record(env.q_target[0].cpu().numpy())            # frame 0: the reset state
+    # checkpoints: after each manipulation segment ends (+ckpt_margin frames), if every object handled so far is
+    # within ckpt_err of the demo, save the committed run so a later attempt can continue from there
+    bidx = {b: i for i, b in enumerate(env.meta["bodies"])}
+    segs = sorted((g["end"], int(body_obj[bidx[g["body"]]])) for side in env.meta["segments"].values() for g in side)
+    ck_frames = [(e + args.ckpt_margin, sorted({o for _, o in segs[:i + 1]})) for i, (e, _) in enumerate(segs)]
+    ckpts = []
+    cpu = lambda x: {k: cpu(v) for k, v in x.items()} if isinstance(x, dict) else (x.cpu() if torch.is_tensor(x) else x)
+    gpu = lambda x: {k: gpu(v) for k, v in x.items()} if isinstance(x, dict) else (x.to(dev) if torch.is_tensor(x) else x)
+
+    def save_ckpt(i, nominal):
+        if i == len(ck_frames) - 1:                  # after the last segment only settling is left: resuming there
+            return                                   # can only repeat the same outcome (06 ep11 schunk)
+        objs = ck_frames[i][1]
+        worst = max(float(rec["err"][-1][o]) for o in objs)
+        if worst > args.ckpt_err:
+            print(f"  no checkpoint {i} at frame {int(env.frame[0])}: object error {100 * worst:.1f} cm", flush=True)
+            return
+        path = out_dir / f"{args.tag}_ckpt{i}.pt"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        torch.save({"seg": i, "frame": int(env.frame[0]), "tag": args.tag, "objects": objs, "snap": cpu(env.snapshot()),
+                    "rec": rec, "trace": trace, "tracker": tracker.state(), "tracker_hist": list(tracker.history),
+                    "nominal": nominal.cpu(), "n_opt": n_opt,
+                    "ref": {"q": env.ref_q.cpu(), "tips": env.ref_tips.cpu(), "wrist": env.ref_wrist.cpu()}}, path)
+        ckpts[:] = [c for c in ckpts if c["seg"] != i] + [{"seg": i, "frame": int(env.frame[0]), "path": str(path)}]
+        print(f"  checkpoint {i} at frame {int(env.frame[0])} (objects {[env.obj_ids[o] for o in objs]}) -> {path.name}",
+              flush=True)
+
+    if ck is not None:
+        for k in rec:
+            rec[k] = list(ck["rec"][k])
+        trace.extend(ck["trace"])
+        tracker.history = list(ck["tracker_hist"])
+        tracker.load(ck["tracker"])
+        env.restore(gpu(ck["snap"]))
+        nominal, n_opt = ck["nominal"].to(dev), ck["n_opt"]
+        next_ck = ck["seg"] + 1
+    else:
+        trace.append({"state": recorder.capture(env), "substeps": [], "cmd": None})
+        record(env.q_target[0].cpu().numpy())        # frame 0: the reset state
+        next_ck = 0
     while int(env.frame[0]) < T - 3:
         f = int(env.frame[0])
         history.append((env.snapshot(), len(rec["err"]), nominal.clone(), tracker.state()))
@@ -245,9 +290,13 @@ def main():
                     tracker.load(tstate)
                     env.restore(snap)
                     level_until = key + (args.backtrack + 1) * S + H
+                    next_ck = min(next_ck, sum(1 for fr, _ in ck_frames if fr <= key))   # re-check passed checkpoints
                     print(f"  drop of {[env.obj_ids[x] for x in dropped]} at frame {fa}: back to {key}, "
                           f"retry {level}/{args.max_retries} with {args.iters * (1 + level)} iterations", flush=True)
                     continue
+        while next_ck < len(ck_frames) and int(env.frame[0]) >= ck_frames[next_ck][0]:
+            save_ckpt(next_ck, nominal)
+            next_ck += 1
         if int(env.frame[0]) >= level_until:
             level = 0
         shift = max(commit.shape[0] // knot, 1)
@@ -269,6 +318,7 @@ def main():
            "instant_success_frames": int(sum(tracker.history)),
            "minutes": round((time.time() - t0) / 60, 1), "optimised_steps": n_opt,
            "retries": {str(k): v for k, v in retries.items()}, "args": vars(args), "env_cfg": overrides,
+           "resumed_from": args.resume or None, "checkpoints": ckpts,
            "obj_err_mean_cm": dict(zip(env.obj_ids, (100 * er.mean(0)).round(2).tolist())),
            "obj_err_final_cm": dict(zip(env.obj_ids, (100 * er[-1]).round(2).tolist()))}
     res["task_success"] = res["scene_success"]

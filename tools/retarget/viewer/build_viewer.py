@@ -290,6 +290,8 @@ def main():
 
         for t in targets:
             td = d / t
+            if not (td / "kinematic.npz").exists():          # stage 2 not done yet for this pair
+                continue
             kin = np.load(td / "kinematic.npz")
             trajs = {"kin": kin["q"][ks]}
             runs = []
@@ -339,9 +341,10 @@ def main():
                     runs_note.append(res["aborted"])
                 if res.get("retries"):
                     runs_note.append("backtracking " + ", ".join(f"{k}:{v}" for k, v in res["retries"].items()))
-                label = ("기구학 경로 물리 재생 (stage 2 관절 경로 그대로, SPIDER 없음)" if tag == "kinreplay" else
-                         f"SPIDER 시도 {tag.split('_a')[-1] if '_a' in tag else 0} · seed {args.get('seed')} · "
-                         f"{args.get('num_samples')} 샘플 · iters {args.get('iters')}")
+                label = ("② Kinematic retargeting · 기구학 경로를 물리에서 그대로 실행 (SPIDER 없음)" if tag == "kinreplay" else
+                         f"③ SPIDER 시도 {int(tag.split('_a')[-1]) + 1 if '_a' in tag else 1} · seed {args.get('seed')} · "
+                         f"{args.get('num_samples')} 샘플 · iters {args.get('iters')}"
+                         + (" · 체크포인트에서 이어 함" if res.get("resumed_from") else ""))
                 entry["runs"].append({
                     "file": f"{name}_{t}_{tag}", "tag": tag, "label": label,
                     "task_success": bool(success), "conditions": fin, "score": int(sum(fin.values())),

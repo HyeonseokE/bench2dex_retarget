@@ -28,6 +28,12 @@ Bench2Dex MetricTracker check).
 
 Attempts (`run_target.py`): attempt K = seed K, num_samples 1024 * (1 + K // 2), iters 5 + K, up to 5,
 stop at the first MetricTracker success.
+Checkpoints (2026-10-06): stage 3 saves a checkpoint 10 frames after each manipulation segment ends when every
+object handled so far is within 4 cm of the demo (not after the last segment: only settling is left there).
+Attempt K = 1..max-2 continues from the deepest checkpoint of an earlier attempt not used yet (each at most once,
+so a repeated failure falls back to an earlier one); the last attempt starts from scratch. A resumed attempt skips
+the hold pass and reuses the checkpointed reference. Local GPU server: run under CUDA MPS (`nvidia-cuda-mps-control -d`
+before launching), ~2x faster per attempt with 4 processes per GPU.
 
 ## Rejected settings — do not retry these patterns
 

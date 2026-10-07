@@ -72,6 +72,22 @@ def main():
         print(f"RESULT run_target {scene} ep{a.episode} -> {a.target}: {status.get('state')}", flush=True)
 
 
+def pick_checkpoint(d: Path, status: dict) -> str:
+    """Deepest checkpoint of an earlier attempt that no attempt has continued from yet ("" if none).
+
+    Checkpoints are written by stage 3 after a manipulation segment ends with every object handled so far near
+    the demo. Taking each one once means a failure right after a checkpoint falls back to an earlier one."""
+    used = set(status.get("resumed", []))
+    ref = json.load(open(d.parent / "reference.json"))
+    last = sum(len(v) for v in ref["segments"].values()) - 1      # the last segment's checkpoint leaves nothing to fix
+    cands = []
+    for p in d.glob("spider_a*_ckpt*.pt"):
+        att, seg = p.stem.split("_a")[1].split("_ckpt")
+        if str(p) not in used and int(seg) < last:
+            cands.append((int(seg), int(att), str(p)))
+    return max(cands)[2] if cands else ""
+
+
 def body(a, d, log, status, save, common):
     if run(log, [PY, HERE / "stage2_kinematic.py", *common, "--headless"], 3600) != 0:
         return save(state="stage2_failed")
@@ -84,6 +100,11 @@ def body(a, d, log, status, save, common):
         rec_path = d / f"{tag}_record.json"
         if not rec_path.exists():
             extra = ["--seed", str(att), "--num_samples", str(1024 * (1 + att // 2)), "--iters", str(5 + att)]
+            resume = pick_checkpoint(d, status) if 0 < att < a.max_attempts - 1 else ""   # last attempt: from scratch
+            if resume:
+                extra += ["--resume", resume]
+                status.setdefault("resumed", []).append(resume)
+                save()
             rc = run(log, [PY, HERE / "stage3_spider.py", *common, "--tag", tag, *extra, *a.spider_args.split(),
                            "--headless"], 6 * 3600)
             if rc != 0 or not (d / f"{tag}_trace.pkl.gz").exists():
