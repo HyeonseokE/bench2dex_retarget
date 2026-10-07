@@ -1,6 +1,7 @@
 #!/bin/bash
 # One job, two pro6000 GPUs, CUDA MPS on, PER_GPU (default 10) retargeting sessions per GPU at once.
-# Submitted by ondemand/main_job.sbatch -- do not paste this one.
+# Run by ondemand/main_job.sbatch inside its own allocation (bash, not sbatch); can also be submitted on
+# its own to resume a task whose data is already downloaded (sbatch --export=ALL,TASKS=07,EPISODES=50 ...).
 #
 # Progress: $HOME/b2d/b2dr_status.md (OOD Files app), rewritten every 5 min by ondemand/monitor.sh, which
 # this job starts; a one-line summary also goes into this job's log.

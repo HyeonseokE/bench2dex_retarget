@@ -2,8 +2,8 @@
 # After a task's array: per target hand, push the recorded HDF5 of all EPISODES source episodes to
 # <ns>/b2d-<scene>-<target>-retargeting (+ dataset card) -- ONLY if every one of them succeeded; otherwise
 # nothing is pushed and the missing episodes are printed (tools/retarget/upload_task.py). Resubmit
-# main_job.sbatch to retry the missing ones; this job runs again after that array.
-# Submitted by ondemand/main_job.sbatch with --dependency=afterany on the array -- do not paste this one.
+# main_job.sbatch to retry the missing ones; the upload is decided again at its end.
+# Run by ondemand/main_job.sbatch at its end (bash, not sbatch); can also be submitted on its own.
 #
 #SBATCH --job-name=b2dr-finalize
 #SBATCH --partition=gpu
