@@ -10,6 +10,7 @@ OOD Job Composer → New Job → 파일 내용 붙여넣기 → Submit.
 | 순서 | 파일 | 무엇 |
 |---|---|---|
 | 1 | `env_check.sbatch` | 환경 점검. L1 CUDA · L2 apptainer/SIF · L3 Isaac Sim · L4 카메라 · L5–L10 파이프라인 1–5단계(06 ep0, 짧게) · L11 HF 쓰기 권한. 출력은 `$HOME/b2d/b2dr_runs_envcheck/` |
+| 0 | `sysinfo.sbatch` | 노드 소프트웨어 사양(드라이버·CUDA·OS·SLURM·apptainer·컨테이너) + Isaac Sim 렌더링 확인. 결과 `SPEC.md` → `experiments/ENVIRONMENT.md`에 정리 |
 | 2 | `main_job.sbatch` | 실제 작업. 태스크 하나 × 50 에피소드 → 소스 외 4종 손으로 retarget → 기록·렌더 → HF 업로드 |
 
 나머지 파일은 잡이 clone/pull한 fork 체크아웃(`$HOME/b2d/bench2dex_retarget`)에서 읽는다. 그래서 `retarget/`, `tools/retarget/`,
