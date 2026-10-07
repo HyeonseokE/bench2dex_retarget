@@ -1,24 +1,24 @@
 # One episode, every target robot: stage 1 once, then per target tools/retarget/run_target.py --
-#   stage 2 kinematic retarget -> SPIDER + Bench2Dex record, retried with new seeds / more search until
-#   MetricTracker calls it a success (MAX_ATTEMPTS) -> render like the released replay data -> push the
-#   episode to <ns>/b2d-<scene>-<target>-retargeting on Hugging Face.
+#   stage 2 kinematic retarget -> SPIDER (v2 defaults, same attempt schedule as the local runs) + Bench2Dex
+#   record, until MetricTracker calls it a success (MAX_ATTEMPTS). No rendering (RTX rendering is not
+#   available on the cluster) and no upload here: ondemand/finalize.sbatch pushes a target's recorded HDF5
+#   only once all source episodes of the task succeeded (tools/retarget/upload_task.py).
 # Sourced by retarget_array.sbatch with TASK and EPISODE set; no #SBATCH here. Every step skips what
 # is already done, so a resubmitted or walltime-killed item resumes.
 #
 #   TARGETS        space-separated robots (default: every robot but the episode's source)
-#   PACK           targets processed at the same time on this GPU (default 2)
-#   MAX_ATTEMPTS   SPIDER attempts per target before the episode is left out (default 5)
-#   SPIDER_ARGS    extra stage-3 arguments for every attempt
-#   UPLOAD=0       keep results local; HF_NAMESPACE / HF_STAGES are read by tools/retarget/upload_hf.py
+#   PACK           targets processed at the same time on this GPU (default 4 = all targets; 96 GB pro6000)
+#   MAX_ATTEMPTS   SPIDER attempts per target before the episode counts as failed (default 5)
+#   SPIDER_ARGS    extra stage-3 arguments for every attempt (default none = v2)
+#   RENDER=1       also render (stage 5) -- only where Isaac Sim RTX rendering works
 
 set +e        # failures are handled per stage; one target failing must not kill the others
 RUN="$REPO_DIR/results"
 ALL_ROBOTS="rh56dfx rh5dg2 shadow schunk wuji"
-PACK="${PACK:-2}"
+PACK="${PACK:-4}"
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-5}"
 SPIDER_ARGS="${SPIDER_ARGS:-}"
-UPLOAD="${UPLOAD:-1}"
-export APPTAINERENV_HF_NAMESPACE="${HF_NAMESPACE:-}" APPTAINERENV_HF_STAGES="${HF_STAGES:-origin replay}"
+RENDER="${RENDER:-0}"
 cd "$REPO_DIR"
 
 stage() {   # stage LOG TIMEOUT_S script args...
@@ -44,11 +44,11 @@ echo "=== source $SRC -> targets: $TARGETS (PACK=$PACK) ==="
 one_target() {
   local tgt="$1"
   mkdir -p "$HOST_EPDIR/$tgt"
-  local up=""; [ "$UPLOAD" = "1" ] || up="--no_upload"
+  local nr="--no_render"; [ "$RENDER" = "1" ] && nr=""
   timeout --kill-after=60 172000 "${ISAAC[@]}" env PY="$PY" "$PY" tools/retarget/run_target.py \
     --task "$TASK" --episode "$EPISODE" --target "$tgt" --max_attempts "$MAX_ATTEMPTS" \
-    --spider_args "$SPIDER_ARGS" $up 2>&1 | grep "^RESULT"
-  grep -q '"state": "\(uploaded\|rendered\)"' "$HOST_EPDIR/$tgt/status.json"
+    --spider_args "$SPIDER_ARGS" --no_upload $nr 2>&1 | grep "^RESULT"
+  grep -q '"state": "\(recorded\|rendered\)"' "$HOST_EPDIR/$tgt/status.json"
 }
 
 pids=() rc=0

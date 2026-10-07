@@ -38,8 +38,8 @@ pretty_name: "Bench2Dex {scene}: {target} (SPIDER retargeting)"
 # Bench2Dex `{scene}` retargeted to UR5 + {target_long}
 
 Teleoperated Bench2Dex demonstrations of **{scene}** (source hand: {source_long}) retargeted to
-**{target_long}** with SPIDER (sampling-based physics retargeting, arXiv 2511.09484), then recorded and
-rendered exactly like the released [Bench2Dex/teleopdata](https://huggingface.co/datasets/Bench2Dex/teleopdata).
+**{target_long}** with SPIDER (sampling-based physics retargeting, arXiv 2511.09484), then {made} like the
+released [Bench2Dex/teleopdata](https://huggingface.co/datasets/Bench2Dex/teleopdata).
 
 - **Episodes:** {n_up} of {n_src} source episodes ({missing_note})
 - **Success:** every episode here is a stable success of Bench2Dex's own `MetricTracker` on the recorded run.
@@ -48,8 +48,7 @@ rendered exactly like the released [Bench2Dex/teleopdata](https://huggingface.co
 ## Layout
 
 ```
-dataset/{scene}/{target}/origin-generalization/episode_XXXXXX.hdf5   states, actions, objects, box3d, metrics (no images)
-dataset/{scene}/{target}/replay-generalization/episode_XXXXXX.hdf5   origin + RGB x6 (JPEG 480x640) + TacMap tactile x10 + box2d + occupancy
+{layout}
 ```
 
 `episode_XXXXXX` is the index of the source episode in `Bench2Dex/teleopdata/dataset/{scene}`; the scene,
@@ -72,6 +71,23 @@ keys of the pinned Bench2Dex revision, no `_1` re-rendered appearance variants, 
 The source teleoperation data is distributed without a declared license; Bench2Dex code is MIT.
 Check the Bench2Dex terms before redistribution.
 """
+
+LAYOUT = {
+    "origin": "dataset/{scene}/{target}/origin-generalization/episode_XXXXXX.hdf5   states, actions, objects, box3d, metrics (no images)",
+    "replay": "dataset/{scene}/{target}/replay-generalization/episode_XXXXXX.hdf5   origin + RGB x6 (JPEG 480x640) + TacMap tactile x10 + box2d + occupancy",
+}
+STAGE_DIR = {"origin": "origin-generalization", "replay": "replay-generalization"}
+
+
+def card_text(scene, target, source, n_up, n_src, failures, stages):
+    """Dataset card for the stages in the repo ("origin" only = recorded, not rendered)."""
+    missing_list = "\n".join(f"- episode_{k}: {v['state']} ({v['attempts']} attempts)" for k, v in failures.items()) or "None."
+    return CARD.format(scene=scene, target=target, target_long=LONG[target], source_long=LONG[source], n_up=n_up,
+                       n_src=n_src, missing_note="all included" if not failures else f"{len(failures)} left out, listed below",
+                       missing_list=missing_list,
+                       made="recorded and rendered" if "replay" in stages else "recorded (states only, not rendered)",
+                       layout="\n".join(LAYOUT[s].format(scene=scene, target=target) for s in stages))
+
 
 LONG = {"rh56dfx": "Inspire RH56DFX", "rh5dg2": "RH5DG2", "shadow": "Shadow Hand", "schunk": "Schunk SVH",
         "wuji": "Wuji Hand"}
@@ -96,7 +112,9 @@ def main():
         except Exception as e:  # noqa: BLE001
             print(f"[skip] {rid}: {type(e).__name__}", flush=True)
             continue
-        up = sorted({int(m.group(1)) for f in files if (m := re.search(r"replay-generalization/episode_(\d{6})\.hdf5$", f))})
+        stages = os.environ.get("HF_STAGES", "origin replay").split()
+        last = STAGE_DIR[stages[-1]]
+        up = sorted({int(m.group(1)) for f in files if (m := re.search(last + r"/episode_(\d{6})\.hdf5$", f))})
         failures = {}
         for e in eps:
             if e in up:
@@ -104,10 +122,7 @@ def main():
             st = paths.RUNS / scene / f"ep{e:03d}" / tgt / "status.json"
             s = json.load(open(st)) if st.exists() else {"state": "not run"}
             failures[f"{e:06d}"] = {"state": s.get("state"), "attempts": len(s.get("attempts", []))}
-        missing_list = "\n".join(f"- episode_{k}: {v['state']} ({v['attempts']} attempts)" for k, v in failures.items()) or "None."
-        card = CARD.format(scene=scene, target=tgt, target_long=LONG[tgt], source_long=LONG[source], n_up=len(up),
-                           n_src=len(eps), missing_note="all included" if not failures else f"{len(failures)} left out, listed below",
-                           missing_list=missing_list)
+        card = card_text(scene, tgt, source, len(up), len(eps), failures, stages)
         with tempfile.TemporaryDirectory() as tmp:
             open(f"{tmp}/README.md", "w").write(card)
             json.dump(failures, open(f"{tmp}/failures.json", "w"), indent=1)

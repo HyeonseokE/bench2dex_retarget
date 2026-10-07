@@ -1,7 +1,9 @@
 #!/bin/bash
-# After a task's array: write the dataset card (README.md) and failures.json of every target repo.
+# After a task's array: per target hand, push the recorded HDF5 of all EPISODES source episodes to
+# <ns>/b2d-<scene>-<target>-retargeting (+ dataset card) -- ONLY if every one of them succeeded; otherwise
+# nothing is pushed and the missing episodes are printed (tools/retarget/upload_task.py). Resubmit
+# main_job.sbatch to retry the missing ones; this job runs again after that array.
 # Submitted by ondemand/main_job.sbatch with --dependency=afterany on the array -- do not paste this one.
-# Episodes that never succeeded are listed there as left out, to be handled later.
 #
 #SBATCH --job-name=b2dr-finalize
 #SBATCH --partition=gpu
@@ -17,7 +19,8 @@ REPO_DIR="$HOME/b2d/bench2dex_retarget"
 # shellcheck source=/dev/null
 source "$REPO_DIR/ondemand/env.sh"
 sync_repo "" "$REPO_DIR"
-export APPTAINERENV_HF_NAMESPACE="${HF_NAMESPACE:-}"
+export APPTAINERENV_HF_NAMESPACE="${HF_NAMESPACE:-}" APPTAINERENV_HF_STAGES="${HF_STAGES:-origin}"
 for t in ${TASKS:?}; do
-  "${ISAAC[@]}" "$PY" tools/retarget/hf_card.py --task "$t" ${TARGETS:+--targets "$TARGETS"} || echo "[warn] card for $t failed"
+  "${ISAAC[@]}" "$PY" tools/retarget/upload_task.py --task "$t" --episodes "${EPISODES:-50}" \
+    ${TARGETS:+--targets "$TARGETS"} || echo "[info] task $t: not every target complete, see above"
 done

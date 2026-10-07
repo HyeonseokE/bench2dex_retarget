@@ -10,23 +10,23 @@
 #   3. setup      Isaac Sim 5.1 SIF, Isaac Lab v2.3.2 (once; ~1 h the first time)
 #   4. fetch      teleop episodes + the assets of the selected tasks (skips what is already there)
 #   5. submit     one array task per (task, episode); each retargets that episode onto every
-#                 other robot until it succeeds, records + renders it like the released data and
-#                 pushes it to <ns>/b2d-<scene>-<robot>-retargeting (ondemand/retarget_array.sbatch ->
-#                 ondemand/retarget_body.sh -> tools/retarget/run_target.py); then, after the array,
-#                 ondemand/finalize.sbatch writes each repo's dataset card and failures.json
+#                 other robot (SPIDER v2) until MetricTracker calls it a success and records it as
+#                 Bench2Dex HDF5 (ondemand/retarget_array.sbatch -> ondemand/retarget_body.sh ->
+#                 tools/retarget/run_target.py; no rendering on the cluster); then, after the array,
+#                 ondemand/finalize.sbatch pushes a target's HDF5 to <ns>/b2d-<scene>-<robot>-retargeting
+#                 ONLY if all EPISODES source episodes succeeded for that target
 #
 # Everything after step 2 is read from the pulled fork, so edits to retarget/, tools/retarget/ and
 # ondemand/*.sh only need a push. Only an edit to THIS file needs re-pasting.
 #
-# Intended use: ONE TASK PER SUBMISSION, all 50 source episodes -- TASKS="06" (edit below). The four
-# target repos of that task then fill episode by episode (one Hub commit per episode). Resubmitting is
-# always safe: finished stages and pushed episodes are skipped, and a queue already running refuses
-# duplicates.
+# Intended use: ONE TASK PER SUBMISSION, all 50 source episodes -- TASKS="07" (edit below). Resubmitting
+# is always safe: finished stages and successful episodes are skipped (failed ones get new attempts),
+# and a queue already running refuses duplicates.
 #
 # Knobs (sbatch --export=ALL,KNOB=value, or edit the defaults below):
-#   TASKS="06"  EPISODES=50  TARGETS="shadow wuji" (default: all but the source)  MAX_ATTEMPTS=5
-#   PACK=2 (targets at once per GPU)  MAX_GPUS=2  SPIDER_ARGS=""  UPLOAD=1
-#   HF_NAMESPACE (default: the token's user)  HF_STAGES="origin replay"
+#   TASKS="07"  EPISODES=50  TARGETS="shadow wuji" (default: all but the source)  MAX_ATTEMPTS=5
+#   PACK=4 (targets at once per GPU)  MAX_GPUS=2  SPIDER_ARGS="" (v2)  UPLOAD=1  RENDER=0
+#   HF_NAMESPACE (default: the token's user)  HF_STAGES="origin"
 #
 #SBATCH --job-name=b2dr-main
 #SBATCH --partition=gpu
@@ -42,7 +42,7 @@ export USER="${USER:-$(id -un)}"
 echo "=== b2dr-main start: $(date) on $(hostname) ==="
 
 REPO_URL="${REPO_URL:-https://github.com/HyeonseokE/bench2dex_retarget.git}"   # the fork; this pipeline is its ondemand/
-export TASKS="${TASKS:-06}"          # one task per submission (06 12 42 07 34 60 43 76 08 44 21 27)
+export TASKS="${TASKS:-07}"          # one task per submission (06 12 42 07 34 60 43 76 08 44 21 27)
 export EPISODES="${EPISODES:-50}"
 MAX_GPUS="${MAX_GPUS:-2}"
 
