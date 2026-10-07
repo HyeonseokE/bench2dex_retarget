@@ -33,8 +33,9 @@ OOD Job Composer → New Job → 파일 내용 붙여넣기 → Submit.
 
 ## 진행 확인
 
-로그인 노드(OOD 셸)에서 `bash ~/b2d/bench2dex_retarget/ondemand/status.sh`. 잡 목록, (태스크, 손)별 성공·실패·진행 수
-(`results/report/STATUS.md`, 2분마다 갱신), 워커 로그의 최근 시작·종료와 오류, 노드의 GPU 메모리·세션 수·MPS 상태·`/tmp` 여유를 보여 준다.
+클러스터에서 명령을 칠 수 없으므로 워커 잡이 스스로 보고한다. OOD Files 앱에서 **`~/b2d/b2dr_status.md`**를 연다(5분마다 갱신):
+(태스크, 손)별 성공·실패·진행 수, 큐의 최근 시작·종료, 오류, GPU 메모리·사용률·세션 수, MPS 서버 상태, 노드 `/tmp` 여유.
+같은 요약 한 줄이 워커 로그(`slurm-b2dr-retarget-<id>.out`)에도 `[monitor ...]`로 남는다.
 
 ## 조절 (`sbatch --export=ALL,KNOB=값` 또는 sbatch 상단 기본값 수정)
 
@@ -66,7 +67,7 @@ dataset/<scene>/<target>/replay-generalization/episode_NNNNNN.hdf5   # origin + 
 | `setup.sh` | SIF 빌드, Isaac Lab 설치, python 의존성 (1회) |
 | `fetch_data.py` | HF `Bench2Dex/teleopdata` origin 에피소드 + coupling용 에피소드 + 에셋 |
 | `retarget_worker.sbatch` | 2 GPU 워커: MPS 시작, GPU id 확인, `run_queue.py` 실행, 끝에 손별 50/50 여부 출력 |
-| `status.sh` | 진행 확인 (제출하지 않고 로그인 노드에서 실행) |
+| `monitor.sh` | 워커가 백그라운드로 실행하는 상태 보고 (`~/b2d/b2dr_status.md`) |
 | `finalize.sbatch` | 손별 업로드 판정(50/50일 때만 HDF5 + 카드 업로드) |
 | `checks/` | `env_check.sbatch`가 쓰는 L1/L3/L4 점검 스크립트 |
 

@@ -2,7 +2,8 @@
 # One job, two pro6000 GPUs, CUDA MPS on, PER_GPU (default 10) retargeting sessions per GPU at once.
 # Submitted by ondemand/main_job.sbatch -- do not paste this one.
 #
-# Progress: bash ondemand/status.sh on the login node (jobs, results/report/STATUS.md, GPUs, MPS).
+# Progress: $HOME/b2d/b2dr_status.md (OOD Files app), rewritten every 5 min by ondemand/monitor.sh, which
+# this job starts; a one-line summary also goes into this job's log.
 #
 # Runs tools/retarget/run_queue.py inside the Isaac Sim container: a queue of (episode, target hand)
 # items of $TASKS, 0..EPISODES-1, onto every hand but the source; each item is tools/retarget/run_target.py
@@ -44,7 +45,7 @@ mkdir -p "$CUDA_MPS_PIPE_DIRECTORY" "$CUDA_MPS_LOG_DIRECTORY"
 MPS=0
 if [ "${MPS_ON:-1}" = "1" ] && command -v nvidia-cuda-mps-control >/dev/null; then
   nvidia-cuda-mps-control -d && MPS=1
-  trap 'echo quit | nvidia-cuda-mps-control; rm -rf "$MPS_DIR"' EXIT
+  trap 'kill ${MON:-} 2>/dev/null; echo quit | nvidia-cuda-mps-control; rm -rf "$MPS_DIR"' EXIT
   export APPTAINERENV_CUDA_MPS_PIPE_DIRECTORY="$CUDA_MPS_PIPE_DIRECTORY" APPTAINERENV_CUDA_MPS_LOG_DIRECTORY="$CUDA_MPS_LOG_DIRECTORY"
   echo "MPS control daemon started ($MPS_DIR)"
 else
@@ -67,13 +68,19 @@ echo "sessions use CUDA_VISIBLE_DEVICES in [$GPUS], $PER_GPU per GPU, MPS=$MPS"
 
 # ------------------------------------------------------------------ queue
 # progress report (STATUS.md per task x target, refreshed every 2 min) into results/report/ -- not the
-# tracked experiments/, so the checkout stays clean for git pull. Read it with ondemand/status.sh.
+# tracked experiments/, so the checkout stays clean for git pull. ondemand/monitor.sh summarises it.
 export APPTAINERENV_B2DR_EXPERIMENTS=/workspace/bench2dex_retarget/results/report
+MYLOG="$(scontrol show job "${SLURM_JOB_ID:-0}" 2>/dev/null | grep -o 'StdOut=[^ ]*' | cut -d= -f2)"
+bash "$CODE_DIR/monitor.sh" "${MYLOG:-/dev/null}" "${MONITOR_S:-300}" &
+MON=$!
+echo "live status: $HOME/b2d/b2dr_status.md (every ${MONITOR_S:-300} s)"
 "${ISAAC[@]}" env PY="$PY" "$PY" tools/retarget/run_queue.py --tasks $TASKS \
   --episodes $(seq 0 $(( EPISODES - 1 ))) ${TARGETS:+--targets $TARGETS} \
   --gpus $GPUS --per_gpu "$PER_GPU" --max_attempts "$MAX_ATTEMPTS" --spider_args "${SPIDER_ARGS:-}" \
   --no_render --no_upload --retry_failed
 
+kill "$MON" 2>/dev/null || true
+timeout 20 bash "$CODE_DIR/monitor.sh" "${MYLOG:-/dev/null}" 99999 || true     # final snapshot
 echo "=== summary $(date) ==="
 for t in $TASKS; do
   "${ISAAC[@]}" "$PY" tools/retarget/upload_task.py --task "$t" --episodes "$EPISODES" ${TARGETS:+--targets "$TARGETS"} --dry_run || true
