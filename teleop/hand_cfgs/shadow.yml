@@ -7,6 +7,11 @@ retargeting:
 
   hand_offset_xyz: [0, 0.01, 0.05]
   hand_scale_xyz: [1, 1.05, 0.9]
+  # Quest/OpenXR (--teleop-device quest): metric hand joints, so the Manus-tuned scale above
+  # does not apply. Uniform scale = robot/human open-hand wrist->tip length for an average
+  # adult hand (~19 cm wrist->middle tip); tune per operator (hot-reloaded).
+  xr_hand_scale_xyz: [1.10, 1.10, 1.10]
+  xr_hand_offset_xyz: [0, 0, 0]
   mano_correction_vis: true
 
   joint_limits_override:
