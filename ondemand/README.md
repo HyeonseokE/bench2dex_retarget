@@ -46,7 +46,7 @@ OOD Job Composer → New Job → 파일 내용 붙여넣기 → Submit.
 | `TASKS` | 큐의 첫 태스크 | `TASKS=07`만 주면 그 태스크 하나만 (체인 없음) |
 | `EPISODES` | `50` | 소스 에피소드 수 |
 | `TARGETS` | 소스 외 4종 | 예: `"shadow wuji"` |
-| `MAX_ATTEMPTS` | `5` | (에피소드, 목표)당 SPIDER 시도 횟수 |
+| `MAX_ATTEMPTS` | `3` | (에피소드, 목표)당 SPIDER 시도 횟수 (시도 0: 1024 샘플·iters 5, 시도 1: 체크포인트에서 이어서 1024·6, 시도 2: 처음부터 2048·7) |
 | `PER_GPU` | `10` | GPU당 동시 세션 수 (2장 → 20개) |
 | `MPS_ON` | `1` | CUDA MPS 데몬을 잡 안에서 켬 (노드에 `nvidia-cuda-mps-control`이 없으면 경고 후 MPS 없이 실행) |
 | `SPIDER_ARGS` | 없음 (= v2) | stage 3 추가 인자. 비워 두면 v2 기본값 |

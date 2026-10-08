@@ -28,7 +28,7 @@
 # behind it. To stop the chain, cancel the running job AND the queued one.
 #
 # Knobs (sbatch --export=ALL,KNOB=value, or edit the defaults below):
-#   TASK_QUEUE="12 42 34 60 43 76 08 21 27"  (TASKS="07" runs one task alone)  EPISODES=50  TARGETS="shadow wuji" (default: all but the source)  MAX_ATTEMPTS=5
+#   TASK_QUEUE="12 42 34 60 43 76 08 21 27"  (TASKS="07" runs one task alone)  EPISODES=50  TARGETS="shadow wuji" (default: all but the source)  MAX_ATTEMPTS=3
 #   PER_GPU=10 (sessions per GPU, 2 GPUs)  MPS_ON=1  SPIDER_ARGS="" (v2)  UPLOAD=1
 #   HF_NAMESPACE (default: the token's user)  HF_STAGES="origin"
 #

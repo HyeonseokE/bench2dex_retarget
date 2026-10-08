@@ -35,7 +35,7 @@ source "$REPO_DIR/ondemand/env.sh"
 sync_repo "" "$REPO_DIR"
 cd "$REPO_DIR"
 PER_GPU="${PER_GPU:-10}"
-MAX_ATTEMPTS="${MAX_ATTEMPTS:-5}"
+MAX_ATTEMPTS="${MAX_ATTEMPTS:-3}"         # cluster: 3 attempts per (episode, target) (user, 2026-10-08)
 echo "=== b2dr-retarget: tasks [$TASKS] eps 0..$(( EPISODES - 1 )) on $(hostname), CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-?} $(date) ==="
 nvidia-smi --query-gpu=index,name,uuid,memory.total --format=csv,noheader
 

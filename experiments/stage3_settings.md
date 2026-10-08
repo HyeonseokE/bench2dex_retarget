@@ -26,7 +26,8 @@ Bench2Dex MetricTracker check).
 | settle | 40 frames | hold the last command after the demo; success keeps being checked |
 | early stop | none | the run always reaches the end of the demo |
 
-Attempts (`run_target.py`): attempt K = seed K, num_samples 1024 * (1 + K // 2), iters 5 + K, up to 5,
+Attempts (`run_target.py`): attempt K = seed K, num_samples 1024 * (1 + K // 2), iters 5 + K, up to 5 (local default;
+the pro6000 cluster uses 3 since 2026-10-08, user's choice: attempts 0-2 = 1024/5, 1024/6 from a checkpoint, 2048/7 from scratch),
 stop at the first MetricTracker success.
 Checkpoints (2026-10-06): stage 3 saves a checkpoint 10 frames after each manipulation segment ends when every
 object handled so far is within 4 cm of the demo (not after the last segment: only settling is left there).
