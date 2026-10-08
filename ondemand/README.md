@@ -70,6 +70,7 @@ dataset/<scene>/<target>/replay-generalization/episode_NNNNNN.hdf5   # origin + 
 | `fetch_data.py` | HF `Bench2Dex/teleopdata` origin 에피소드 + coupling용 에피소드 + 에셋 |
 | `retarget_worker.sbatch` | 2 GPU 워커: MPS 시작, GPU id 확인, `run_queue.py` 실행, 끝에 손별 50/50 여부 출력 |
 | `monitor.sh` | 워커가 백그라운드로 실행하는 상태 보고 (`~/b2d/b2dr_status.md`) |
+| `upload_job.sbatch` | (붙여넣기용) 끝난 태스크를 지금 업로드. 기본 `ALLOW_PARTIAL=1`: 성공한 것만 올리고 나머지는 `failures.json`에. 나중에 빠진 에피소드만 다른 곳에서 채워 올리면 Hub에 있는 것과 합쳐 50/50 카드로 갱신 |
 | `finalize.sbatch` | 손별 업로드 판정(50/50일 때만 HDF5 + 카드 업로드) |
 | `checks/` | `env_check.sbatch`가 쓰는 L1/L3/L4 점검 스크립트 |
 
