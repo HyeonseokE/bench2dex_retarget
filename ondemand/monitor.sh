@@ -28,6 +28,17 @@ while true; do
     echo
     if [ -f "$REPORT" ]; then grep -E '^Total|^\|' "$REPORT"; else echo "(report not written yet)"; fi
     echo
+    echo "## success by attempt (first try vs retry)"
+    echo
+    echo "| task | target | 1st try | retry | failed |"
+    echo "|---|---|---|---|---|"
+    for f in "$REPO"/results/report/*/*/results.csv; do
+      [ -f "$f" ] || continue
+      awk -F, 'NR > 1 { if ($6 == "True") { if ($5 <= 1) a++; else b++ } else if ($4 ~ /failed/) c++ }
+               END { printf "| %s | %s | %d | %d | %d |\n", t, g, a, b, c }' \
+          t="$(basename "$(dirname "$(dirname "$f")")")" g="$(basename "$(dirname "$f")")" "$f"
+    done
+    echo
     echo "## node"
     echo '```'
     nvidia-smi --query-gpu=index,memory.used,memory.total,utilization.gpu --format=csv 2>/dev/null
