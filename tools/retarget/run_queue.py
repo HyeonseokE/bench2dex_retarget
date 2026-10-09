@@ -47,6 +47,9 @@ def main():
     ap.add_argument("--spider_args", default="")
     ap.add_argument("--no_render", action="store_true")
     ap.add_argument("--no_upload", action="store_true")
+    ap.add_argument("--only", nargs="*", default=None, metavar="EP:TARGET",
+                    help="run only these (episode, target) pairs, e.g. 8:shadow 6:schunk")
+    ap.add_argument("--seed_offset", type=int, default=0, help="passed to run_target.py")
     ap.add_argument("--retry_failed", action="store_true",
                     help="also re-run targets that ended failed_all_attempts (new attempts if --max_attempts grew)")
     ap.add_argument("--no_report", action="store_true",
@@ -89,7 +92,8 @@ def main():
     def target_job(task, ep, tgt, gpu):
         try:
             cmd = [py, str(HERE / "run_target.py"), "--task", task, "--episode", str(ep), "--target", tgt,
-                   "--max_attempts", str(a.max_attempts), "--spider_args", a.spider_args]
+                   "--max_attempts", str(a.max_attempts), "--spider_args", a.spider_args,
+                   "--seed_offset", str(a.seed_offset)]
             cmd += ["--no_render"] * a.no_render + ["--no_upload"] * a.no_upload
             run(cmd, gpu, logdir / f"{task}_ep{ep:03d}_{tgt}.log", 48 * 3600)
             st = paths.run_dir(task, ep) / tgt / "status.json"
@@ -118,6 +122,8 @@ def main():
                     continue
             src = json.load(open(ref)).get("source")
             for tgt in [r for r in (a.targets or ALL_ROBOTS) if r != src]:   # never the source hand
+                if a.only is not None and f"{ep}:{tgt}" not in a.only:
+                    continue
                 st = epdir / tgt / "status.json"
                 if st.exists() and json.load(open(st)).get("state") in final:
                     continue

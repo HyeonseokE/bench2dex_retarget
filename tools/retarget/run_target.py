@@ -49,6 +49,8 @@ def main():
     ap.add_argument("--episode", type=int, required=True)
     ap.add_argument("--target", required=True)
     ap.add_argument("--max_attempts", type=int, default=5)
+    ap.add_argument("--seed_offset", type=int, default=0,
+                    help="attempt K uses seed K + offset (re-running elsewhere with fresh seeds)")
     ap.add_argument("--spider_args", default="", help="extra stage-3 arguments for every attempt")
     ap.add_argument("--no_render", action="store_true")
     ap.add_argument("--no_upload", action="store_true")
@@ -99,7 +101,7 @@ def body(a, d, log, status, save, common):
         tag = f"spider_a{att}"
         rec_path = d / f"{tag}_record.json"
         if not rec_path.exists():
-            extra = ["--seed", str(att), "--num_samples", str(1024 * (1 + att // 2)), "--iters", str(5 + att)]
+            extra = ["--seed", str(att + a.seed_offset), "--num_samples", str(1024 * (1 + att // 2)), "--iters", str(5 + att)]
             resume = pick_checkpoint(d, status) if 0 < att < a.max_attempts - 1 else ""   # last attempt: from scratch
             if resume:
                 extra += ["--resume", resume]
