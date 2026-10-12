@@ -55,7 +55,7 @@ TASK_QUEUE="${TASK_QUEUE:-79 80}"
 export TASKS="${TASKS:-${TASK_QUEUE%% *}}"
 # Target hands per task ("task:hand,hand ..."); a task not listed gets the default set (the other UR5 hands
 # for a UR5 task, the six-hand set otherwise). TARGETS, if given, overrides it for every task.
-export TASK_TARGETS="${TASK_TARGETS:-79:rh56dfx,rh5dg2 80:shadow}"
+export TASK_TARGETS="${TASK_TARGETS:-79:rh56dfx,rh5dg2,shadow,wuji 80:shadow,leap,schunk}"
 if [ -z "${TARGETS:-}" ]; then
   TARGETS="$(for m in $TASK_TARGETS; do [ "${m%%:*}" = "$TASKS" ] && echo "${m#*:}" | tr ',' ' '; done)"
 fi
