@@ -52,6 +52,36 @@ Robot keys: `multi_ur5_rh56dfx_with_flange`, `multi_ur5_rh5dg2_with_flange`, `mu
 `multi_ur5_schunk_hand_with_flange`, `multi_ur5_wuji_with_flange`. All 12 scenes use the same success rule
 (MetricTracker stable success, dwell 0.5 s).
 
+## 2b. Hand set for the cross-hand dataset (decided 2026-10-12)
+
+Six hands. Five share the UR5 arm, so only the hand differs between them; LEAP adds a hand with a different
+finger count (it is an official Bench2Dex embodiment only on xArm7). DoF counted per hand from the Bench2Dex
+robot models (joints) and teleop configs (`teleop/hand_cfgs/*.yml`, driven joints = what retargeting plans).
+
+| Hand | Arm | Fingers | DoF (joints / driven) | Key trait | Why it is in the set |
+|---|---|---|---|---|---|
+| Inspire RH56DFX | UR5 | 5 | 12 / 6 | linkage-coupled, low DoF (6 mimic joints) | the most common commercial humanoid hand; low-DoF anchor |
+| Inspire RH5DG2 | UR5 | 5 | 18 / 13 | same family, different shape and fingertips (5 passive joints) | near pair to RH56DFX: effect of a small shape change |
+| Schunk SVH | UR5 | 5 | 20 / 9 | 9 actuators drive 20 joints through couplings | mid DoF; far fewer drives than joints |
+| Wuji | UR5 | 5 | 20 / 20 | every joint driven | high DoF, direct drive |
+| Shadow | UR5 | 5 | 24 / 22 | human-sized, most joints (teleop fixes THJ3, LFJ5) | high-DoF anthropomorphic; hardest to retarget |
+| LEAP | xArm7 | 4 | 16 / 13 | four fingers, individually driven (teleop fixes 3 abduction joints) | different finger count |
+
+Comparisons the set supports (same source episode, scene and objects for every hand):
+
+1. DoF axis (RH56DFX, RH5DG2 -> Schunk -> Wuji, Shadow): does more driven DoF make retargeting and policy
+   learning easier or harder (success rate, attempts, policy success).
+2. Near-pair transfer (RH56DFX <-> RH5DG2): the easiest cross-hand generalisation case.
+3. Same DoF class, different build (Wuji <-> Shadow): separates DoF from shape and size.
+4. Finger count (five-finger hands <-> LEAP): how grasps change with one finger fewer, and whether five-finger
+   data generalises to four fingers. Arm differs here (xArm7), so this axis is not hand-only.
+5. Retargeting difficulty already measured on task 07 (first-attempt success): RH56DFX 94 %, Wuji 76 %,
+   Schunk 60 %, Shadow 48 %.
+
+Extra source tasks (demos not on UR5): 79 bimanual_piano_melody (xArm7 + Ability) and 80 gaming_desk_setup
+(JAKA ZU7 + DexHand021), 50 episodes each (indices 0-49), targets = the six hands above. Not in the six,
+not used: Ability and DexHand021 as targets, Panda (Allegro, Orca), RM65 (Revo2), iiwa7 (Sharpa).
+
 ## 3. Dataset counts
 
 | Hand | Tasks with original demos | Tasks to retarget | Episodes to generate |
