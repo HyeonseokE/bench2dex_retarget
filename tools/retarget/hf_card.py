@@ -1,6 +1,6 @@
 """Write the dataset card (README.md) and failures.json of every target repo of a task.
 
-Run once the task's episodes are done (ondemand/finalize.sbatch does it after the array). The card is
+Run once the task's episodes are done (ondemand/bench2dex/finalize.sbatch does it after the array). The card is
 built from what is actually in the repo plus the local status.json of every source episode: which
 episodes are in, which never succeeded within the retry budget (left out, to be handled later).
 

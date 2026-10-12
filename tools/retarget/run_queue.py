@@ -1,5 +1,5 @@
 """Retarget whole tasks on a plain GPU server (no SLURM): a queue of (task, episode, target) jobs
-spread over the local GPUs, the dev-box counterpart of ondemand/main_job.sbatch.
+spread over the local GPUs, the dev-box counterpart of ondemand/bench2dex/main_job.sbatch.
 
 Per episode: stage 1 once, then tools/retarget/run_target.py per target (stage 2, SPIDER with
 retries, Bench2Dex record, render, optional HF upload). Every step skips finished work, so the

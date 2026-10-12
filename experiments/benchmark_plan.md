@@ -111,12 +111,15 @@ if every episode succeeds; episodes that never pass the success check are left o
    from a state snapshot.
 6. Up to 5 attempts per (episode, target) with new seeds and more samples (`run_target.py`).
 
-## 5. Status
+## 5. Status (2026-10-12)
 
-- 06 -> Shadow, prototype code (stopped 10-06): 25/50 episodes run, 14 success
-  (`06_fruit_bowl_loading/shadow/legacy_prototype/`). The repo pipeline has not run the full set yet.
-- Local data on the dev box (`/workspace/b2d_origin`): 50 episodes for 9 of the 12 tasks; 44 has 45,
-  60 and 76 none. A new server downloads them with `tools/retarget/local/setup.sh --fetch`.
+- Cluster (pro6000, `ondemand/bench2dex/`): task 07 done (200 runs, 188 success; local re-runs added 5); task 79 running on
+  the six hands, then 80. The UR5 chain 12 -> 42 -> 34 -> 60 -> 43 -> 76 -> 08 -> 21 -> 27 was submitted earlier.
+- On Hugging Face (`HyeonseokE/b2d-<scene>-<target>-retargeting`, origin HDF5): 06 -> rh5dg2 / schunk / wuji 50 each;
+  07 -> rh56dfx 50, wuji 50, schunk 49 (ep6 missing), shadow 44; 44 -> 4-8 per hand (partial, uploaded from elsewhere).
+- Tasks 79 / 80 (other arms): stage-2 contact tip error on ep0 below 1 cm for 79 -> rh56dfx, rh5dg2, shadow, wuji and
+  80 -> shadow, leap, schunk; above for 79 -> schunk (1.25), leap (13.5) and 80 -> rh56dfx (5.6), rh5dg2 (1.5), wuji (1.03).
+  All twelve pairs are submitted to see the SPIDER outcome.
 
 ## 6. Compute estimate
 

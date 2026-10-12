@@ -12,11 +12,11 @@
 | Benchmark | this fork of Bench2Dex (upstream github.com/Bench2Dex/Bench2Dex) |
 
 Plain GPU servers: `tools/retarget/local/setup.sh` builds the same stack (torch cu128).
-Cluster (pro6000, SLURM): `ondemand/` (Isaac Sim 5.1 SIF + Isaac Lab v2.3.2).
+Cluster (pro6000, SLURM): `ondemand/bench2dex/` (Isaac Sim 5.1 SIF + Isaac Lab v2.3.2).
 
 ## Cluster: pro6000 (SLURM, OpenOnDemand)
 
-From `ondemand/sysinfo.sbatch` job 1534 (2026-10-07; `SPEC.md`: host, container, render check).
+From `ondemand/bench2dex/sysinfo.sbatch` job 1534 (2026-10-07; `SPEC.md`: host, container, render check).
 
 | item | value | source |
 |---|---|---|
@@ -28,7 +28,7 @@ From `ondemand/sysinfo.sbatch` job 1534 (2026-10-07; `SPEC.md`: host, container,
 | disks | node `/` (holds `/tmp`) 7.0 TB, 99% used, 116 GB free; `/home` NAS 44 TB, 26 TB free | sysinfo |
 | container | `nvcr.io/nvidia/isaac-sim:5.1.0` SIF (Ubuntu 24.04.2, Isaac Sim 5.1.0-rc.19), `--nv` binds the 580.82.07 GL/EGL/Vulkan/rtcore/optix libs | sysinfo |
 | torch / Isaac Lab (in container) | 2.7.0+cu128, sm_120 kernels, Python 3.11.13 / isaaclab 0.54.2 (v2.3.2) | sysinfo |
-| Isaac Sim render | R1 Kit headless + render steps: **PASS** (250 s). R2 Isaac Lab camera RGB frame: **timeout at 1200 s** (NGX/DLSS context errors in the log; cause not identified yet) | sysinfo |
+| Isaac Sim render | R1 Kit headless + render steps: **PASS** (250 s). R2 camera check: timeout at 1200 s, but it was called without `--camera`, so no camera frame was actually requested (fixed 2026-10-12); cluster camera rendering is **untested** | sysinfo |
 
 Driver vs Isaac Sim 5.1: NVIDIA tested 5.1.0 on Linux driver **580.65.06** (R580). R590/R595 drivers
 (CUDA 13.1/13.2) have reports of RTX-renderer crashes (`librtx.scenedb.plugin.so` segfault, DEVICE_LOST),

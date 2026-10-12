@@ -38,7 +38,7 @@ export HOME="${HOME:-$(getent passwd "$(id -un)" | cut -d: -f6)}"
 export USER="${USER:-$(id -un)}"
 echo "=== b2dr-envcheck start: $(date) on $(hostname) ==="
 
-REPO_URL="${REPO_URL:-https://github.com/HyeonseokE/bench2dex_retarget.git}"   # the fork; this pipeline is its ondemand/
+REPO_URL="${REPO_URL:-https://github.com/HyeonseokE/bench2dex_retarget.git}"   # the fork; this pipeline is its ondemand/bench2dex/
 ONLY="${ONLY:-L1 L2 L3 L4 L4c L5 L6 L7 L8 L9 L10 L11}"
 
 echo "=== [L0] host ==="
@@ -69,7 +69,7 @@ else
   LG clone "$REPO_URL" "$B"
 fi
 # shellcheck source=/dev/null
-source "$B/ondemand/env.sh"
+source "$B/ondemand/bench2dex/env.sh"
 echo "Bench2Dex fork @ $(GIT -C "$REPO_DIR" rev-parse --short HEAD)"
 
 echo "=== setup ==="
@@ -78,7 +78,7 @@ source "$CODE_DIR/setup.sh"
 
 echo "=== fetch (task 06, episode 0, all assets) ==="
 export APPTAINERENV_TASKS="06" APPTAINERENV_EPISODES="1"
-"${ISAAC[@]}" "$PY" ondemand/fetch_data.py
+"${ISAAC[@]}" "$PY" ondemand/bench2dex/fetch_data.py
 
 # ------------------------------------------------------------------ checks
 RUNS="$WS/b2dr_runs_envcheck"
@@ -101,7 +101,7 @@ run_check() {   # run_check NAME MARKER TIMEOUT_S cmd...
   echo "--- $name: ${RES[$name]} in ${INFO[$name]}"
   grep -E "^RESULT|^\[L[0-9]|^L[0-9]|Traceback|Error:|FATAL|Episode step limit|rt_ratio" "$log" | tail -8 | sed 's/^/  /' || true
 }
-CK=/workspace/bench2dex_retarget/ondemand/checks
+CK=/workspace/bench2dex_retarget/ondemand/bench2dex/checks
 EP0="$RUNS/06_fruit_bowl_loading/ep000"
 
 run_check L1 L1_OK 600 "${ISAAC[@]}" "$PY" $CK/l1_cuda.py
@@ -111,7 +111,7 @@ run_check L2 L2_DONE 300 "${ISAAC[@]}" bash -c '
   done; echo L2_DONE'
 run_check L3 L3_OK 1500 "${ISAAC[@]}" "$PY" $CK/l3_isaacsim.py
 run_check L4 L4_OK 1500 "${ISAAC[@]}" "$PY" $CK/l4_camera.py --headless --num_envs 1024
-run_check L4c L4C_OK 1200 "${ISAAC[@]}" "$PY" $CK/l4_camera.py --headless --enable_cameras --num_envs 1 --png "$COUT/l4c_camera.png"
+run_check L4c L4C_OK 1200 "${ISAAC[@]}" "$PY" $CK/l4_camera.py --headless --enable_cameras --camera --num_envs 1 --png "$COUT/l4c_camera.png"
 run_check L5 "Episode step limit reached" 2400 "${ISAAC[@]}" bash -c \
   "cd /workspace/bench2dex_retarget && $PY main.py --task scenes/06_fruit_bowl_loading.yaml --episode-steps 300 --headless --profile"
 run_check L6 "RESULT stage1" 3600 "${ISAAC[@]}" "$PY" tools/retarget/stage1_reference.py --task 06 --episode 0 --headless

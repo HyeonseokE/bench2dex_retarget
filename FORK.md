@@ -9,7 +9,7 @@ inside our own modules), never in the authors' code.
 | `retarget/` | SPIDER cross-embodiment retargeting library ([README](retarget/README.md)) |
 | `tools/retarget/` | retargeting entry points (stage1–5, run_target, HF upload, audit) |
 | `tools/retarget/viewer/` | web viewer of retarget results (`build_viewer.py` -> `results/viewer/<scene>/`, three.js page); `tools/retarget/kin_replay.py`: physics replay of the stage-2 kinematic path |
-| `ondemand/` | SLURM jobs for the pro6000 cluster ([README](ondemand/README.md)) |
+| `ondemand/` | SLURM jobs for the pro6000 cluster: `bench2dex/` retargeting ([README](ondemand/bench2dex/README.md)), `dexverse/` (planned) |
 | `policy/MyPolicy/` | own policy, in the authors' plugin location (`policy.<name>.deploy_policy`) |
 | `tools/eval/` | eval helpers: `act_shared_gpu.sh` (wraps `policy/ACT/eval_double_env.sh`), `summarize_eval.py` |
 | `FORK.md` | this file |
@@ -22,5 +22,5 @@ Update from the authors:
 
     git fetch upstream && git merge upstream/main && git push origin main
 
-Then run `ondemand/env_check.sbatch` once: a clean merge can still change an API that
+Then run `ondemand/bench2dex/env_check.sbatch` once: a clean merge can still change an API that
 `retarget/robots.py` (spawner), `retarget/sim_env.py` (scene) or `retarget/recorder.py` (recording) uses.

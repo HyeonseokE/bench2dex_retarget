@@ -76,7 +76,7 @@ LG() { apptainer exec --bind "$WS" docker://hyeonseoke/lerobot:v1 git "$@"; }
 if [ -d "$B/.git" ]; then LG -C "$B" pull --ff-only || echo "WARN: git pull failed; using the existing checkout"
 else LG clone "$REPO_URL" "$B" || { echo "FATAL: clone failed"; exit 1; }; fi
 # shellcheck source=/dev/null
-source "$B/ondemand/env.sh"
+source "$B/ondemand/bench2dex/env.sh"
 # shellcheck source=/dev/null
 ( set -e; source "$CODE_DIR/setup.sh" ) || echo "WARN: setup did not finish; container checks may fail"
 
@@ -89,7 +89,7 @@ run "${ISAAC[*]} bash -c 'command -v vulkaninfo && vulkaninfo --summary 2>&1 | g
 end
 
 echo "=== [C] render ==="
-CK=/workspace/bench2dex_retarget/ondemand/checks
+CK=/workspace/bench2dex_retarget/ondemand/bench2dex/checks
 COUT="/workspace/b2dr_runs_envcheck/sysinfo/$(basename "$OUT")"
 declare -A RES
 check() {   # check NAME MARKER TIMEOUT cmd...
@@ -104,7 +104,7 @@ check() {   # check NAME MARKER TIMEOUT cmd...
   echo "--- $name: ${RES[$name]}"
 }
 check R1 L3_OK 1200 "${ISAAC[@]}" "$PY" $CK/l3_isaacsim.py
-check R2 L4C_OK 1200 "${ISAAC[@]}" "$PY" $CK/l4_camera.py --headless --enable_cameras --num_envs 1 --png "$COUT/r2_camera.png"
+check R2 L4C_OK 1200 "${ISAAC[@]}" "$PY" $CK/l4_camera.py --headless --enable_cameras --camera --num_envs 1 --png "$COUT/r2_camera.png"
 sec "C render checks"
 for k in R1 R2; do echo "$k: ${RES[$k]}" >> "$SPEC"; done
 echo >> "$SPEC"

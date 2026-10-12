@@ -48,6 +48,6 @@ if [ "${1:-}" = "--fetch" ]; then
   : "${TASKS:?set TASKS, e.g. TASKS=\"06 12 42 07 34 60 43 76 08 44 21 27\"}"
   [ -s "$HOME/.hf_token" ] && export HF_TOKEN="$(tr -d '[:space:]' < "$HOME/.hf_token")"
   echo "=== data: tasks $TASKS, ${EPISODES:-50} episodes each ==="
-  B2D_ROOT="$B2D_ROOT" TASKS="$TASKS" EPISODES="${EPISODES:-50}" python Bench2Dex/ondemand/fetch_data.py
+  B2D_ROOT="$B2D_ROOT" TASKS="$TASKS" EPISODES="${EPISODES:-50}" python Bench2Dex/ondemand/bench2dex/fetch_data.py
 fi
 echo "SETUP OK  ->  source $B2D_ROOT/bench2dex_retarget/tools/retarget/local/env.sh"

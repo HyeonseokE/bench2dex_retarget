@@ -2,7 +2,7 @@
 
 Bench2Dex fork(**[HyeonseokE/bench2dex_retarget](https://github.com/HyeonseokE/bench2dex_retarget)**)에 추가한 retargeting 라이브러리다.
 레포 하나로 벤치마크 환경(Bench2Dex 원본 코드), retargeting(`retarget/` 라이브러리 + `tools/retarget/` 실행 스크립트),
-클러스터 잡(`ondemand/`, 사용법은 [`ondemand/README.md`](../ondemand/README.md))을 함께 관리한다.
+클러스터 잡(`ondemand/bench2dex/`, 사용법은 [`ondemand/bench2dex/README.md`](../ondemand/bench2dex/README.md))을 함께 관리한다.
 저자 원본은 `upstream`(github.com/Bench2Dex/Bench2Dex)으로 연결해 두고, 업데이트는 `git fetch upstream && git merge upstream/main`으로 받는다.
 
 Bench2Dex teleop 데모를 **소스 손에서 나머지 UR5 손 4종으로** 옮긴다. 학습 없이, 태스크 물체의 움직임을
@@ -30,7 +30,7 @@ HF `Bench2Dex/teleopdata`의 각 task 폴더에는 같은 인덱스로 파일이
 | `.../episode_000000_1..049_1.hdf5` | 같은 궤적의 시각 증강본: 로봇 관절·액션·물체 pose·지표는 원본과 **완전히 같고**, 배경(iTHOR FloorPlan)·테이블 재질·조명만 다르게 샘플링 | 받지 않는다 (동작이 같음) |
 | `dataset/<scene>/replay-generalization/...` | 위 두 벌을 카메라 6대·TacMap·라벨까지 렌더한 버전 | 받지 않는다 (stage 5에서 우리가 직접 렌더) |
 
-그래서 고유 데모는 task당 50개다(26 x 50 = 논문의 ~1.3K). `ondemand/fetch_data.py`(로컬은 `setup.sh --fetch`)는
+그래서 고유 데모는 task당 50개다(26 x 50 = 논문의 ~1.3K). `ondemand/bench2dex/fetch_data.py`(로컬은 `setup.sh --fetch`)는
 `origin-generalization/episode_NNNNNN.hdf5`(접미사 없는 것)만 받아 `$B2D_ROOT/b2d_origin/dataset/`에 둔다.
 직접 받을 때도 `allow_patterns=["dataset/<scene>/origin-generalization/episode_??????.hdf5"]`처럼 `_1`과 replay를 빼면 된다.
 (06 ep0·ep7·ep21에서 원본과 `_1`을 비교해 확인, 2026-10-06.) 공개 데이터처럼 100개를 맞추려면 성공 에피소드를 `_1`의
@@ -42,7 +42,7 @@ appearance 샘플로 한 번 더 렌더하면 되지만, 지금 파이프라인�
 |---|---|
 | `retarget/` | 라이브러리: paths, robots(손 5종 스펙·스포너), task(씬·에피소드 로드), sim_env, spider_env, coupling, geometry, recorder(상태 기록 → Bench2Dex HDF5) |
 | `tools/retarget/` | 실행 스크립트: stage1–5, `run_target.py`(시도 반복·status.json·업로드), `upload_hf.py`, `hf_card.py`, `audit_episode.py`, `label_episode.py`, `run_episode.sh` |
-| `ondemand/` | SLURM 잡·컨테이너·데이터 다운로드만 (코드 없음) |
+| `ondemand/bench2dex/` | SLURM 잡·컨테이너·데이터 다운로드만 (코드 없음) |
 
 출력은 레포 안 두 폴더로 나뉜다: `results/`(참조·trace·rollout·HDF5·영상·로그, git 제외, `$B2DR_RUNS`로 변경 가능)와 `experiments/`(task별·목표 손별 폴더에 진행상황·수치·config, 실험 환경·문서, git 추적). 소스 데이터는 `$B2D_ROOT/b2d_origin/dataset`이다.
 
@@ -99,7 +99,7 @@ cat experiments/<scene>/<target>/STATUS.md        # (task, 에피소드, 목표)
 
 ## 클러스터 (pro6000, OpenOnDemand)
 
-[`ondemand/README.md`](../ondemand/README.md) 참고.
+[`ondemand/bench2dex/README.md`](../ondemand/bench2dex/README.md) 참고.
 
 ## 검증 현황 (2026-10-05, dev 박스 RTX 3090, 다른 실험과 GPU 공유)
 
