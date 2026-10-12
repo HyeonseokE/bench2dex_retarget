@@ -17,7 +17,7 @@
 #   6. upload     IN THIS JOB (ondemand/finalize.sbatch): a target's HDF5 goes to
 #                 <ns>/b2d-<scene>-<robot>-retargeting ONLY if all EPISODES source episodes succeeded
 #
-# Live status: ~/b2d/b2dr_status.md (OOD Files app), rewritten every 5 min; summary lines in this log.
+# Live status: ~/b2d/b2dr_status_task<task>.md (OOD Files app), rewritten every 5 min; summary lines in this log.
 #
 # Everything after step 2 is read from the pulled fork, so edits to retarget/, tools/retarget/ and
 # ondemand/*.sh only need a push. Only an edit to THIS file needs re-pasting.
@@ -28,7 +28,8 @@
 # behind it. To stop the chain, cancel the running job AND the queued one.
 #
 # Knobs (sbatch --export=ALL,KNOB=value, or edit the defaults below):
-#   TASK_QUEUE="12 42 34 60 43 76 08 21 27"  (TASKS="07" runs one task alone)  EPISODES=50  TARGETS="shadow wuji" (default: all but the source)  MAX_ATTEMPTS=3
+#   TASK_QUEUE="79 80"  (TASKS="07" runs one task alone)  TASK_TARGETS="79:a,b 80:c" or TARGETS="a b"  EPISODES=50
+#   PARALLEL=1 (jobs of different tasks run side by side; 0 = one b2dr job at a time)  TARGETS="shadow wuji" (default: all but the source)  MAX_ATTEMPTS=3
 #   PER_GPU=10 (sessions per GPU, 2 GPUs)  MPS_ON=1  SPIDER_ARGS="" (v2)  UPLOAD=1
 #   HF_NAMESPACE (default: the token's user)  HF_STAGES="origin"
 #
@@ -50,16 +51,29 @@ REPO_URL="${REPO_URL:-https://github.com/HyeonseokE/bench2dex_retarget.git}"   #
 # next job for the rest (--dependency=afterany on this one), so the chain keeps going even if a task fails
 # or hits the walltime, and the next job is already waiting in the queue when this one ends.
 ALONE=0; [ -n "${TASKS:-}" ] && [ -z "${TASK_QUEUE:-}" ] && ALONE=1      # TASKS=07 alone: no chain
-TASK_QUEUE="${TASK_QUEUE:-12 42 34 60 43 76 08 21 27}"
+TASK_QUEUE="${TASK_QUEUE:-79 80}"
 export TASKS="${TASKS:-${TASK_QUEUE%% *}}"
+# Target hands per task ("task:hand,hand ..."); a task not listed gets the default set (the other UR5 hands
+# for a UR5 task, the six-hand set otherwise). TARGETS, if given, overrides it for every task.
+export TASK_TARGETS="${TASK_TARGETS:-79:rh56dfx,rh5dg2 80:shadow}"
+if [ -z "${TARGETS:-}" ]; then
+  TARGETS="$(for m in $TASK_TARGETS; do [ "${m%%:*}" = "$TASKS" ] && echo "${m#*:}" | tr ',' ' '; done)"
+fi
+export TARGETS
 REST="$(echo " $TASK_QUEUE " | sed "s/ $TASKS / /" | xargs)"
 [ "$ALONE" = 1 ] && REST=""
 export EPISODES="${EPISODES:-50}"
-echo "task $TASKS now; queued after it: [${REST:-none}]"
+echo "task $TASKS now (targets: ${TARGETS:-default}); queued after it: [${REST:-none}]"
 
-# One b2dr job at a time: if another is running, wait for it (requeue this one behind it) instead of
-# racing it for the node and the results tree.
-BUSY="$(squeue -h -u "$USER" -t R -o '%i %j' 2>/dev/null | awk -v me="${SLURM_JOB_ID:-0}" '$1 != me && $2 ~ /^b2dr-(main|retarget)/ {print $1}' | head -1)"
+# Jobs for different tasks may run side by side (the node has 4 GPUs; results are per task). A job that
+# finds another RUNNING job on the same task requeues itself behind it. PARALLEL=0: one b2dr job at a time.
+LOCK="$HOME/b2d/locks/task_${TASKS}.jobid"; mkdir -p "$(dirname "$LOCK")"
+if [ "${PARALLEL:-1}" = "1" ]; then
+  BUSY="$(cat "$LOCK" 2>/dev/null)"
+  [ -n "$BUSY" ] && [ "$BUSY" != "${SLURM_JOB_ID:-0}" ] && squeue -h -j "$BUSY" -t R 2>/dev/null | grep -q . || BUSY=""
+else
+  BUSY="$(squeue -h -u "$USER" -t R -o '%i %j' 2>/dev/null | awk -v me="${SLURM_JOB_ID:-0}" '$1 != me && $2 ~ /^b2dr-(main|retarget)/ {print $1}' | head -1)"
+fi
 if [ -n "$BUSY" ]; then
   SELF="$(scontrol show job "${SLURM_JOB_ID:-0}" 2>/dev/null | grep -o 'Command=[^ ]*' | cut -d= -f2)"
   [ -r "$SELF" ] || SELF="$0"                      # this very file (the pasted one), not an older checkout
@@ -68,6 +82,7 @@ if [ -n "$BUSY" ]; then
   echo "b2dr job $BUSY is running: requeued as job $NEXT after it; exiting"
   exit 0
 fi
+echo "${SLURM_JOB_ID:-$$}" > "$LOCK"
 
 echo "=== [1/6] preflight ==="
 [ -s "$HOME/.hf_token" ] || { echo "FATAL: ~/.hf_token missing or empty. Create it in the OOD Files app."; exit 1; }

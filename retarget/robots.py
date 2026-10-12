@@ -1,4 +1,5 @@
-"""The five UR5 dual-arm hands, as Bench2Dex defines them.
+"""The dual-arm hands the retargeting uses, as Bench2Dex defines them: the five UR5 hands, plus xArm7 + LEAP
+(target) and the sources of tasks 79 (xArm7 + Ability) and 80 (JAKA ZU7 + DexHand021).
 
 Nothing about a robot's physics is re-typed here. ``spawn_robot`` runs Bench2Dex's own spawner, so
 actuator gains, home pose, drive-type fixes, hand friction and gravity compensation are exactly the
@@ -15,6 +16,10 @@ does not spell out in one place:
   flange    tool0, softly kept at the source flange pose during kinematic retargeting.
   actuated  hand joints teleop drives. The rest either follow a mimic constraint in the USD or
             are locked (Shadow THJ3/LFJ5); retarget.coupling models them for IK.
+  arm       arm joints per side, base to flange (UR5: 6, xArm7: 7, JAKA ZU7: 6).
+  tip_weight  per finger, thumb..little; 0 marks a finger the hand does not have (LEAP has four). Its
+            slot keeps a real body so array shapes stay (10, 3), but it is ignored in the IK and in
+            SPIDER's contact cost and guidance.
 """
 
 from __future__ import annotations
@@ -34,6 +39,9 @@ ARM = {
              "L_arm_wrist_1_joint", "L_arm_wrist_2_joint", "L_arm_wrist_3_joint"],
 }
 FLANGE = {"right": "tool0", "left": "L_arm_tool0"}
+XARM_LEAP_ARM = {"right": [f"multi_joint{i}" for i in range(1, 8)], "left": [f"joint{i}" for i in range(1, 8)]}
+XARM_ABILITY_ARM = {"right": [f"multi_xarm_r_joint{i}" for i in range(1, 8)], "left": [f"xarm_l_joint{i}" for i in range(1, 8)]}
+JAKA_ARM = {"right": [f"joint_{i}" for i in range(1, 7)], "left": [f"l_joint_{i}" for i in range(1, 7)]}
 SIDES = ("right", "left")
 FINGERS = ("thumb", "index", "middle", "ring", "little")
 
@@ -48,6 +56,9 @@ class RobotSpec:
     hand_side: str                    # regex group: a hand joint belongs to "left" if it matches
     locked: tuple = ()                # hand joints held at 0
     actuated_from_teleop: bool = True  # else: every non-locked hand joint is actuated
+    arm: dict = field(default_factory=lambda: ARM)
+    flange: dict = field(default_factory=lambda: FLANGE)
+    tip_weight: tuple = (1.0, 1.0, 1.0, 1.0, 1.0)
     extra: dict = field(default_factory=dict)
 
     def side_of(self, joint: str) -> str:
@@ -99,7 +110,40 @@ ROBOTS: dict[str, RobotSpec] = {
         wrist={"right": "right_palm_link", "left": "left_palm_link"},
         tips=_same({s: [f"{s}_finger{i}_tip_link" for i in range(1, 6)] for s in SIDES}),
         hand_side=r"left_", actuated_from_teleop=False),
+    # xArm7 + LEAP (target). Four fingers: the little slot reuses the ring tip with weight 0. Teleop locks the
+    # index/middle/ring abduction joints (0, 4, 8) at 0; every other hand joint is driven.
+    "leap": RobotSpec(
+        name="leap", key="multi_xarm7_with_leap", teleop_cfg="leap",
+        wrist={"right": "multi_leap_r_base", "left": "leap_l_base"},
+        tips=_same({"right": [f"multi_leap_r_{f}_tip_head" for f in ("thumb", "index", "middle", "ring", "ring")],
+                    "left": [f"leap_l_{f}_tip_head" for f in ("thumb", "index", "middle", "ring", "ring")]}),
+        hand_side=r"leap_l_", locked=tuple(f"{p}{i}" for p in ("multi_leap_r_", "leap_l_") for i in (0, 4, 8)),
+        actuated_from_teleop=False, arm=XARM_LEAP_ARM, flange={"right": "multi_link_eef", "left": "link_eef"},
+        tip_weight=(1.0, 1.0, 1.0, 1.0, 0.0)),
+    # Sources only (tasks 79 and 80): replayed kinematically in stage 1, never retargeted onto.
+    "ability": RobotSpec(
+        name="ability", key="multi_xarm7_with_ability", teleop_cfg="ability",
+        wrist={"right": "multi_base", "left": "base"},
+        tips=_same({"right": [f"multi_{f}_anchor" for f in ("thumb", "index", "middle", "ring", "pinky")],
+                    "left": [f"{f}_anchor" for f in ("thumb", "index", "middle", "ring", "pinky")]}),
+        hand_side=r"(?!multi_)", actuated_from_teleop=False, arm=XARM_ABILITY_ARM,
+        flange={"right": "multi_xarm_r_link_eef", "left": "xarm_l_link_eef"}),
+    "dexhand021": RobotSpec(
+        name="dexhand021", key="multi_jaka_zu7_dexhand021_with_flange", teleop_cfg="dexhand021",
+        wrist={"right": "r_p_link4", "left": "l_p_link4"},
+        tips=_same({s: [f"{s[0]}_f_link{i}_tip" for i in range(1, 6)] for s in SIDES}),
+        hand_side=r"l_", actuated_from_teleop=False, arm=JAKA_ARM, flange={"right": "Link_6", "left": "l_Link_6"}),
 }
+UR5_TARGETS = ("rh56dfx", "rh5dg2", "shadow", "schunk", "wuji")
+CROSS_HAND_TARGETS = UR5_TARGETS + ("leap",)      # the six-hand set (experiments/benchmark_plan.md, 2b)
+SOURCE_ONLY = ("ability", "dexhand021")
+
+
+def default_targets(source: str) -> list[str]:
+    """Hands an episode is retargeted onto unless told otherwise: the UR5 tasks keep the five UR5 hands;
+    a task recorded on another arm (79, 80) goes onto the six-hand set. Never the source itself."""
+    pool = UR5_TARGETS if source in UR5_TARGETS else CROSS_HAND_TARGETS
+    return [r for r in pool if r != source]
 BY_KEY = {r.key: r for r in ROBOTS.values()}
 
 

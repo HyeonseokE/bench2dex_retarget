@@ -35,7 +35,7 @@ tags:
 pretty_name: "Bench2Dex {scene}: {target} (SPIDER retargeting)"
 ---
 
-# Bench2Dex `{scene}` retargeted to UR5 + {target_long}
+# Bench2Dex `{scene}` retargeted to {target_arm} + {target_long}
 
 Teleoperated Bench2Dex demonstrations of **{scene}** (source hand: {source_long}) retargeted to
 **{target_long}** with SPIDER (sampling-based physics retargeting, arXiv 2511.09484), then {made} like the
@@ -82,15 +82,17 @@ STAGE_DIR = {"origin": "origin-generalization", "replay": "replay-generalization
 def card_text(scene, target, source, n_up, n_src, failures, stages):
     """Dataset card for the stages in the repo ("origin" only = recorded, not rendered)."""
     missing_list = "\n".join(f"- episode_{k}: {v['state']} ({v['attempts']} attempts)" for k, v in failures.items()) or "None."
-    return CARD.format(scene=scene, target=target, target_long=LONG[target], source_long=LONG[source], n_up=n_up,
+    return CARD.format(scene=scene, target=target, target_long=LONG[target], target_arm=ARM_NAME.get(target, "UR5"),
+                       source_long=LONG[source], n_up=n_up,
                        n_src=n_src, missing_note="all included" if not failures else f"{len(failures)} left out, listed below",
                        missing_list=missing_list,
                        made="recorded and rendered" if "replay" in stages else "recorded (states only, not rendered)",
                        layout="\n".join(LAYOUT[s].format(scene=scene, target=target) for s in stages))
 
 
+ARM_NAME = {"leap": "xArm7", "ability": "xArm7", "dexhand021": "JAKA ZU7"}
 LONG = {"rh56dfx": "Inspire RH56DFX", "rh5dg2": "RH5DG2", "shadow": "Shadow Hand", "schunk": "Schunk SVH",
-        "wuji": "Wuji Hand"}
+        "wuji": "Wuji Hand", "leap": "LEAP Hand", "ability": "Ability Hand", "dexhand021": "DexHand021"}
 
 
 def main():
@@ -104,7 +106,7 @@ def main():
     scene = paths.task_dir(a.task).parent.name
     eps = list_episodes(a.task)
     source = robots.get(load_episode(a.task, eps[0]).robot_key).name
-    targets = a.targets.split() or [r for r in robots.ROBOTS if r != source]
+    targets = a.targets.split() or robots.default_targets(source)
     for tgt in targets:
         rid = repo_id(api, scene, tgt)
         try:

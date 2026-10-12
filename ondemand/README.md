@@ -34,7 +34,7 @@ OOD Job Composer → New Job → 파일 내용 붙여넣기 → Submit.
 
 ## 진행 확인
 
-클러스터에서 명령을 칠 수 없으므로 워커 잡이 스스로 보고한다. OOD Files 앱에서 **`~/b2d/b2dr_status.md`**를 연다(5분마다 갱신):
+클러스터에서 명령을 칠 수 없으므로 워커 잡이 스스로 보고한다. OOD Files 앱에서 **`~/b2d/b2dr_status_task<태스크>.md`**를 연다(5분마다 갱신):
 (태스크, 손)별 성공·실패·진행 수, 큐의 최근 시작·종료, 오류, GPU 메모리·사용률·세션 수, MPS 서버 상태, 노드 `/tmp` 여유.
 같은 요약 한 줄이 잡 로그(`slurm-b2dr-main-<id>.out`)에도 `[monitor ...]`로 남는다.
 
@@ -69,7 +69,7 @@ dataset/<scene>/<target>/replay-generalization/episode_NNNNNN.hdf5   # origin + 
 | `setup.sh` | SIF 빌드, Isaac Lab 설치, python 의존성 (1회) |
 | `fetch_data.py` | HF `Bench2Dex/teleopdata` origin 에피소드 + coupling용 에피소드 + 에셋 |
 | `retarget_worker.sbatch` | 2 GPU 워커: MPS 시작, GPU id 확인, `run_queue.py` 실행, 끝에 손별 50/50 여부 출력 |
-| `monitor.sh` | 워커가 백그라운드로 실행하는 상태 보고 (`~/b2d/b2dr_status.md`) |
+| `monitor.sh` | 워커가 백그라운드로 실행하는 상태 보고 (`~/b2d/b2dr_status_task<태스크>.md`) |
 | `upload_job.sbatch` | (붙여넣기용) 끝난 태스크를 지금 업로드. 기본 `ALLOW_PARTIAL=1`: 성공한 것만 올리고 나머지는 `failures.json`에. 나중에 빠진 에피소드만 다른 곳에서 채워 올리면 Hub에 있는 것과 합쳐 50/50 카드로 갱신 |
 | `finalize.sbatch` | 손별 업로드 판정(50/50일 때만 HDF5 + 카드 업로드) |
 | `checks/` | `env_check.sbatch`가 쓰는 L1/L3/L4 점검 스크립트 |

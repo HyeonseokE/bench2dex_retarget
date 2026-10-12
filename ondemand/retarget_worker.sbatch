@@ -3,7 +3,7 @@
 # Run by ondemand/main_job.sbatch inside its own allocation (bash, not sbatch); can also be submitted on
 # its own to resume a task whose data is already downloaded (sbatch --export=ALL,TASKS=07,EPISODES=50 ...).
 #
-# Progress: $HOME/b2d/b2dr_status.md (OOD Files app), rewritten every 5 min by ondemand/monitor.sh, which
+# Progress: $HOME/b2d/b2dr_status_task<task>.md (OOD Files app), rewritten every 5 min by ondemand/monitor.sh, which
 # this job starts; a one-line summary also goes into this job's log.
 #
 # Runs tools/retarget/run_queue.py inside the Isaac Sim container: a queue of (episode, target hand)
@@ -75,7 +75,7 @@ bash "$CODE_DIR/outputs_note.sh" || true     # OUTPUTS.md in the job folder: whe
 MYLOG="$(scontrol show job "${SLURM_JOB_ID:-0}" 2>/dev/null | grep -o 'StdOut=[^ ]*' | cut -d= -f2)"
 bash "$CODE_DIR/monitor.sh" "${MYLOG:-/dev/null}" "${MONITOR_S:-300}" &
 MON=$!
-echo "live status: $HOME/b2d/b2dr_status.md (every ${MONITOR_S:-300} s)"
+echo "live status: $HOME/b2d/b2dr_status_task${TASKS// /_}.md (every ${MONITOR_S:-300} s)"
 "${ISAAC[@]}" env PY="$PY" "$PY" tools/retarget/run_queue.py --tasks $TASKS \
   --episodes $(seq 0 $(( EPISODES - 1 ))) ${TARGETS:+--targets $TARGETS} \
   --gpus $GPUS --per_gpu "$PER_GPU" --max_attempts "$MAX_ATTEMPTS" --spider_args "${SPIDER_ARGS:-}" \

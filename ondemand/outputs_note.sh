@@ -15,7 +15,7 @@ R="$HOME/b2d/bench2dex_retarget/results"
   echo "| per (episode, target) work: status.json, run.log, spider_aK.json / _trace.pkl.gz | \`$R/<scene>/epNNN/<target>/\` |"
   echo "| stage-1 reference per episode | \`$R/<scene>/epNNN/reference.npz\` |"
   echo "| session logs | \`$R/logs/\` |"
-  echo "| progress report | \`$R/report/STATUS.md\` · live: \`$HOME/b2d/b2dr_status.md\` |"
+  echo "| progress report | \`$R/report/STATUS.md\` · live: \`$HOME/b2d/b2dr_status_task${TASKS// /_}.md\` |"
   echo "| source episodes | \`$HOME/b2d/b2d_origin/dataset/<scene>/origin-generalization/\` |"
   echo
   echo "## HDF5 so far"

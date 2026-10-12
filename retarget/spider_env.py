@@ -146,7 +146,7 @@ class SpiderEnv(B2DEnv):
     def demo_contact_world(self, body_pose, f):
         """Demo contact points of frame f placed on the current body poses: (N,10,3), valid (N,10)."""
         cb = self.contact_body[f]
-        valid = cb >= 0
+        valid = (cb >= 0) & (self.tip_w > 0)                # a finger the target hand lacks never counts
         idx = cb.clamp(min=0)
         p = torch.gather(body_pose[..., :3], 1, idx[..., None].expand(-1, -1, 3))
         q = torch.gather(body_pose[..., 3:7], 1, idx[..., None].expand(-1, -1, 4))

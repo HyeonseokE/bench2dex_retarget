@@ -144,8 +144,9 @@ class B2DEnv(DirectRLEnv):
         names = list(self.robot.joint_names)
         self.joint_names = names
         dev = self.device
-        arm_all = robots.ARM["right"] + robots.ARM["left"]
-        self.arm_ids = {s: torch.tensor([names.index(j) for j in robots.ARM[s]], device=dev) for s in robots.SIDES}
+        arm = self.spec.arm
+        arm_all = arm["right"] + arm["left"]
+        self.arm_ids = {s: torch.tensor([names.index(j) for j in arm[s]], device=dev) for s in robots.SIDES}
         self.hand_joints = {s: [j for j in names if j not in arm_all and self.spec.side_of(j) == s]
                             for s in robots.SIDES}
         self.actuated = {s: self.spec.actuated(s, self.hand_joints[s]) for s in robots.SIDES}
@@ -159,7 +160,8 @@ class B2DEnv(DirectRLEnv):
         self.tip_ids = torch.tensor(self.tip_ids, device=dev)
         self.tip_offset = torch.tensor(offs, dtype=torch.float32, device=dev)        # (10,3)
         self.wrist_ids = torch.tensor([bodies.index(self.spec.wrist[s]) for s in robots.SIDES], device=dev)
-        self.flange_ids = torch.tensor([bodies.index(robots.FLANGE[s]) for s in robots.SIDES], device=dev)
+        self.flange_ids = torch.tensor([bodies.index(self.spec.flange[s]) for s in robots.SIDES], device=dev)
+        self.tip_w = torch.tensor(list(self.spec.tip_weight) * 2, dtype=torch.float32, device=dev)   # (10,)
         lim = self.robot.data.soft_joint_pos_limits[0]
         self.q_lo, self.q_hi = lim[:, 0].clone(), lim[:, 1].clone()
 

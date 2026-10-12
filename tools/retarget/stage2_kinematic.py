@@ -31,6 +31,21 @@ ap.add_argument("--target", required=True)
 ap.add_argument("--iters0", type=int, default=200,
                 help="iterations on the first frame: converge fully, or frame 1 inherits the remainder as a jump")
 ap.add_argument("--iters", type=int, default=8, help="iterations per later frame (warm-started)")
+ap.add_argument("--flange_w", type=float, default=-1.0,
+                help="scale of the soft flange-pose term; -1: 1 when source and target share the arm, else 0 (another "
+                     "arm's flange frame has its own axis convention, so its pose is not a target for this arm's flange)")
+ap.add_argument("--starts", type=int, default=-1,
+                help="first-frame IK restarts (random arm poses), best fingertip fit kept; -1: 32 when source and "
+                     "target arms differ (one start from the target's home pose lands in a wrong arm branch: "
+                     "task 80 JAKA -> UR5, 5-7 cm), else 1")
+ap.add_argument("--wrap", type=int, default=1,
+                help="1: every arm joint takes the 2*pi-equivalent angle nearest the previous frame (within its limits). "
+                     "UR5 joints span +-2*pi, so the IK could land on an equivalent angle 4*pi away (43 -> rh56dfx: "
+                     "12.57 rad in one frame). 0 = original behaviour")
+ap.add_argument("--arm_step", type=float, default=0.0,
+                help="rad per frame (20 fps) an arm joint may move between frames; 0 = no limit (the original "
+                     "behaviour). Without it the IK hopped between wrist branches (0.5-1.5 rad/frame on Schunk/RH56DFX) "
+                     "and to 4*pi-equivalent angles (43 -> rh56dfx), which SPIDER's smoothed arm could not follow")
 AppLauncher.add_app_launcher_args(ap)
 args = ap.parse_args()
 app = AppLauncher(args).app
@@ -77,29 +92,52 @@ def main():
     spec = env.spec
 
     rules = coupling.fit(spec, names, env.hand_joints, env.actuated)["rules"]
-    free = robots.ARM["right"] + robots.ARM["left"] + env.actuated["right"] + env.actuated["left"]
+    free = spec.arm["right"] + spec.arm["left"] + env.actuated["right"] + env.actuated["left"]
     C, d = coupling.matrix(names, free, rules, spec.locked)
     C, d = torch.as_tensor(C, dtype=torch.float32, device=dev), torch.as_tensor(d, dtype=torch.float32, device=dev)
     free_ids = torch.tensor([names.index(n) for n in free], device=dev)
     x_lo, x_hi = env.q_lo[free_ids], env.q_hi[free_ids]
 
-    # first frame's initial guess: the source arm configuration (all five robots carry the same
-    # UR5s), hands at home
+    n_arm = len(spec.arm["right"]) + len(spec.arm["left"])          # free[:n_arm] are the arm joints
+    src_names = [str(n) for n in ref["joint_names"]]
+    same_arm = all(n in src_names for n in free[:n_arm])
+    fw = args.flange_w if args.flange_w >= 0 else (1.0 if same_arm else 0.0)
+    # first frame's initial guess: hands at home; arm = the source arm configuration when source and
+    # target share the arm (same joint names, e.g. the five UR5 robots), else the target's home pose
+    # (the longer first-frame solve, --iters0, then moves it onto the source fingertips)
     src_names = [str(n) for n in ref["joint_names"]]
     x0 = env.robot.data.default_joint_pos[0, free_ids].clone()
-    for i, n in enumerate(free[:12]):
-        x0[i] = float(ref["src_q"][0, src_names.index(n)])
+    if all(n in src_names for n in free[:n_arm]):
+        for i, n in enumerate(free[:n_arm]):
+            x0[i] = float(ref["src_q"][0, src_names.index(n)])
     x0 = torch.max(torch.min(x0, x_hi), x_lo)
 
     tgt_tips = torch.as_tensor(ref["src_tips"], dtype=torch.float32, device=dev)              # (T,10,3)
     w_tip = torch.where(torch.as_tensor(ref["contact_body"], device=dev) >= 0, W_TIP_CONTACT, W_TIP_FREE)
+    w_tip = w_tip * env.tip_w                                   # 0 for a finger the target hand lacks (LEAP)
     fl = torch.as_tensor(ref["src_flange"], dtype=torch.float32, device=dev)                  # (T,2,7)
     fixed = env.robot.is_fixed_base
-    assert fixed, "UR5 bases are fixed; the Jacobian indexing below assumes it"
+    assert fixed, "robot bases are fixed; the Jacobian indexing below assumes it"
 
-    def solve(t, x, x_reg, iters):
-        """Frame t, starting from x (n_free,), regularised towards x_reg."""
+    two_pi = 2 * torch.pi
+
+    def wrap_arm(x, x_prev):
+        """Arm joints moved to the 2*pi-equivalent angle closest to x_prev, if that one is within limits."""
+        a, p = x[0, :n_arm], x_prev[:n_arm]
+        near = p + torch.remainder(a - p + torch.pi, two_pi) - torch.pi
+        ok = (near >= x_lo[:n_arm]) & (near <= x_hi[:n_arm])
+        x = x.clone()
+        x[0, :n_arm] = torch.where(ok, near, a)
+        return x
+
+    def solve(t, x, x_reg, iters, x_prev=None):
+        """Frame t, starting from x (n_free,), regularised towards x_reg; arm joints kept within
+        args.arm_step of the previous frame's solution x_prev (if given)."""
         x = x[None]
+        lo, hi = x_lo.clone(), x_hi.clone()
+        if x_prev is not None and args.arm_step > 0:
+            lo[:n_arm] = torch.max(lo[:n_arm], x_prev[:n_arm] - args.arm_step)
+            hi[:n_arm] = torch.min(hi[:n_arm], x_prev[:n_arm] + args.arm_step)
         for _ in range(iters):
             q = torch.max(torch.min(x @ C.T + d, env.q_hi), env.q_lo)
             env.teleport(q=q)
@@ -114,21 +152,47 @@ def main():
             Jf = J[:, env.flange_ids - 1]                   # (1,2,6,J)
             rot = axis_angle_from_quat(quat_mul(fl[t, :, 3:7], quat_conjugate(fpose[0, :, 3:7])))[None]
             e = torch.cat([(w_tip[t, :, None] * (tgt_tips[t] - tips)).reshape(1, -1),
-                           (W_FLANGE_POS * (fl[t, :, :3] - fpose[..., :3])).reshape(1, -1),
-                           (W_FLANGE_ROT * rot).reshape(1, -1),
+                           (fw * W_FLANGE_POS * (fl[t, :, :3] - fpose[..., :3])).reshape(1, -1),
+                           (fw * W_FLANGE_ROT * rot).reshape(1, -1),
                            W_REG * (x_reg[None] - x)], -1)
             Jx = torch.cat([(w_tip[t, :, None, None] * Jtip).reshape(1, -1, len(names)) @ C,
-                            (W_FLANGE_POS * Jf[:, :, :3]).reshape(1, -1, len(names)) @ C,
-                            (W_FLANGE_ROT * Jf[:, :, 3:]).reshape(1, -1, len(names)) @ C,
+                            (fw * W_FLANGE_POS * Jf[:, :, :3]).reshape(1, -1, len(names)) @ C,
+                            (fw * W_FLANGE_ROT * Jf[:, :, 3:]).reshape(1, -1, len(names)) @ C,
                             W_REG * torch.eye(len(free), device=dev)[None]], 1)
             H = Jx.transpose(1, 2) @ Jx + DAMPING * torch.eye(len(free), device=dev)
             dx = torch.linalg.solve(H, (Jx.transpose(1, 2) @ e[..., None]))[..., 0]
-            x = torch.max(torch.min(x + dx, x_hi), x_lo)
+            # original (before 2026-10-08), joint limits only:
+            # x = torch.max(torch.min(x + dx, x_hi), x_lo)
+            x = torch.max(torch.min(x + dx, hi), lo)
+            if x_prev is not None and args.wrap:
+                x = wrap_arm(x, x_prev)
         return x[0]
 
-    xs = [solve(0, x0, x0, args.iters0)]
+    n_starts = args.starts if args.starts > 0 else (1 if same_arm else 32)
+
+    def frame0_err(x):
+        q = torch.max(torch.min(x[None] @ C.T + d, env.q_hi), env.q_lo)
+        env.teleport(q=q)
+        env.sim.step(render=False)
+        env.scene.update(dt=env.physics_dt)
+        return float((w_tip[0, :, None] * (tgt_tips[0] - env.tips()[0])).norm(dim=-1).sum())
+
+    best = None
+    for k in range(n_starts):
+        xk = x0.clone()
+        if k > 0:
+            xk[:n_arm] = x_lo[:n_arm] + (x_hi[:n_arm] - x_lo[:n_arm]) * torch.rand(n_arm, device=dev)
+        sol = solve(0, xk, xk, args.iters0)
+        err = frame0_err(sol)
+        if best is None or err < best[0]:
+            best = (err, k, sol)
+    if n_starts > 1:
+        print(f"  first frame: best of {n_starts} starts = start {best[1]} (weighted tip error {best[0]:.3f})", flush=True)
+    xs = [best[2]]
     for t in range(1, T):
-        xs.append(solve(t, xs[-1], xs[-1], args.iters))
+        # original (before 2026-10-08), no per-frame arm limit:
+        # xs.append(solve(t, xs[-1], xs[-1], args.iters))
+        xs.append(solve(t, xs[-1], xs[-1], args.iters, x_prev=xs[-1]))   # x_prev: wrap / arm_step
         if t % 100 == 0:
             print(f"  frame {t}/{T}", flush=True)
     x = torch.stack(xs)
@@ -148,7 +212,9 @@ def main():
     rep = {"tip_err_cm_mean": round(100 * err.mean().item(), 2),
            "tip_err_cm_contact": round(100 * err[contact].mean().item(), 2) if contact.any() else None,
            "tip_err_cm_p95": round(100 * err.quantile(0.95).item(), 2),
-           "q_jump_max_rad": round((q[1:] - q[:-1]).abs().max().item(), 3)}
+           "q_jump_max_rad": round((q[1:] - q[:-1]).abs().max().item(), 3),
+           "arm_step_max_rad": round((x[1:, :n_arm] - x[:-1, :n_arm]).abs().max().item(), 3),
+           "arm_step_limit_rad": args.arm_step, "wrap": args.wrap}
     out_dir.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(out, q=q.cpu().numpy(), joint_names=np.array(names), tips=tips.cpu().numpy(),
                         wrist=torch.stack(wrist_all).cpu().numpy(),

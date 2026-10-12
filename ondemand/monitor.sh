@@ -1,7 +1,7 @@
 #!/bin/bash
 # Live status of a running retargeting worker -- started BY the worker job in the background (nothing to
 # type on the cluster). Every INTERVAL seconds (default 300) it rewrites
-#   $HOME/b2d/b2dr_status.md          (open it in the OOD Files app)
+#   $HOME/b2d/b2dr_status_task<task>.md   (open it in the OOD Files app)
 # and prints a one-line summary into the worker's SLURM log.
 #   monitor.sh WORKER_LOG [INTERVAL]
 # Shows: progress per (task, target) (results/report/STATUS.md, written by run_queue.py), the queue's
@@ -9,7 +9,7 @@
 LOG="$1"; INTERVAL="${2:-300}"
 REPO="$HOME/b2d/bench2dex_retarget"
 REPORT="$REPO/results/report/STATUS.md"
-OUT="$HOME/b2d/b2dr_status.md"
+OUT="$HOME/b2d/b2dr_status_task${TASKS// /_}.md"            # one file per task (jobs may run side by side)
 while true; do
   fin=$(grep -cE '\] [0-9]+ ep[0-9]+ -> [a-z0-9]+: ' "$LOG" 2>/dev/null)
   ok=$(grep -cE '\] [0-9]+ ep[0-9]+ -> [a-z0-9]+: (recorded|rendered|uploaded)' "$LOG" 2>/dev/null)

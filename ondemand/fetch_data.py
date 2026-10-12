@@ -8,8 +8,8 @@ Runs inside the Isaac Sim container (huggingface_hub and yaml come from the setu
             (origin = trajectories without images, ~4 MB each), plus episodes 0-4 of one task per
             hand (06 RH56DFX, 07 RH5DG2, 43 Shadow, 08 Schunk, 21 Wuji): retarget.coupling fits each
             target hand's mimic joints on that hand's own demos, whatever task is being retargeted.
-  assets    from Bench2Dex/Assets only the five UR5 robots, the objects of the 12 UR5 tasks and scenes/
-            (~1.8 GB): retargeting does not render. Rendering (stage 5, --restore-generalization)
+  assets    from Bench2Dex/Assets only the robots in use (five UR5 hands, xArm7 + LEAP, the 79/80 sources),
+            the objects of the 12 UR5 tasks and of TASKS, and scenes/ (~2 GB): retargeting does not render. Rendering (stage 5, --restore-generalization)
             would also need Background/, textures/ and the clutter objects.
 
 Environment: TASKS ("06 12 ..."), EPISODES (count), B2D_ROOT, HF_TOKEN (anonymous downloads get
@@ -88,10 +88,13 @@ fetch("Bench2Dex/teleopdata", ROOT / "b2d_origin", allow_patterns=ep_pats)
 # Assets: only what retargeting (stages 1-4, no rendering) reads for the 12 UR5 tasks -- the five UR5 robots,
 # the objects named in those scene files, and scenes/ -- ~1.8 GB instead of the whole 19 GB repo
 # (backgrounds, textures, clutter objects and other robot sets are only needed to render).
-objects = sorted({m for t in UR5_TASKS for n in scenes if n.startswith(t)
+objects = sorted({m for t in UR5_TASKS + TASKS for n in scenes if n.startswith(t)
                   for m in re.findall(r"Objects/([^/\s'\"]+)/", scenes[n].read_text())})
-asset_pats = ["assets.txt", "scenes/*", "Robots_p/ur5+*"] + [f"Objects/{o}/*" for o in objects]
-print(f"[assets] Bench2Dex/Assets: 5 UR5 robots + {len(objects)} task objects + scenes -> {ROOT / 'assets'}", flush=True)
+# robots: the five UR5 hands, xArm7 + LEAP (target of the six-hand set), and the source robots of tasks 79 / 80
+ROBOT_DIRS = ["ur5+*", "xarm+leap", "xarm+ability", "jaka_zu7+dexhand021"]
+asset_pats = ["assets.txt", "scenes/*"] + [f"Robots_p/{r}/*" if "*" not in r else f"Robots_p/{r}" for r in ROBOT_DIRS] \
+    + [f"Objects/{o}/*" for o in objects]
+print(f"[assets] Bench2Dex/Assets: robots {ROBOT_DIRS} + {len(objects)} task objects + scenes -> {ROOT / 'assets'}", flush=True)
 fetch("Bench2Dex/Assets", ROOT / "assets", allow_patterns=asset_pats)
 
 missing = [str(p) for n in names for i in range(EPISODES)

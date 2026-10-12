@@ -63,7 +63,7 @@ def main():
     if not set(episodes) <= have_src:
         sys.exit(f"FATAL: source episodes missing locally: {sorted(set(episodes) - have_src)}")
     source = robots.get(load_episode(a.task, episodes[0]).robot_key).name
-    targets = a.targets.split() or [r for r in robots.ROBOTS if r != source]
+    targets = a.targets.split() or robots.default_targets(source)
     stages = os.environ.get("HF_STAGES", "origin").split()
 
     from huggingface_hub import CommitOperationAdd, HfApi

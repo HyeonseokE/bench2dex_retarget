@@ -25,7 +25,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path.insert(0, str(ROOT))
-from retarget import paths  # noqa: E402
+from retarget import paths, robots  # noqa: E402
 
 ALL_ROBOTS = ["rh56dfx", "rh5dg2", "shadow", "schunk", "wuji"]
 UR5_TASKS = ["06", "12", "42", "07", "34", "60", "43", "76", "08", "44", "21", "27"]
@@ -121,7 +121,7 @@ def main():
                     log(f"stage 1 failed for {task} ep{ep} (see logs/)")
                     continue
             src = json.load(open(ref)).get("source")
-            for tgt in [r for r in (a.targets or ALL_ROBOTS) if r != src]:   # never the source hand
+            for tgt in [r for r in (a.targets or robots.default_targets(src)) if r != src]:   # never the source hand
                 if a.only is not None and f"{ep}:{tgt}" not in a.only:
                     continue
                 st = epdir / tgt / "status.json"
