@@ -57,7 +57,8 @@ export TASKS="${TASKS:-${TASK_QUEUE%% *}}"
 # for a UR5 task, the six-hand set otherwise). TARGETS, if given, overrides it for every task.
 export TASK_TARGETS="${TASK_TARGETS:-79:rh56dfx,rh5dg2,shadow,wuji 80:shadow,leap,schunk}"
 if [ -z "${TARGETS:-}" ]; then
-  TARGETS="$(for m in $TASK_TARGETS; do [ "${m%%:*}" = "$TASKS" ] && echo "${m#*:}" | tr ',' ' '; done)"
+  # (if/fi, not "[ ] && echo": under set -e a false test as the loop's last command fails the assignment)
+  TARGETS="$(for m in $TASK_TARGETS; do if [ "${m%%:*}" = "$TASKS" ]; then echo "${m#*:}" | tr ',' ' '; fi; done)"
 fi
 export TARGETS
 REST="$(echo " $TASK_QUEUE " | sed "s/ $TASKS / /" | xargs)"
@@ -69,7 +70,7 @@ echo "task $TASKS now (targets: ${TARGETS:-default}); queued after it: [${REST:-
 # finds another RUNNING job on the same task requeues itself behind it. PARALLEL=0: one b2dr job at a time.
 LOCK="$HOME/b2d/locks/task_${TASKS}.jobid"; mkdir -p "$(dirname "$LOCK")"
 if [ "${PARALLEL:-1}" = "1" ]; then
-  BUSY="$(cat "$LOCK" 2>/dev/null)"
+  BUSY="$(cat "$LOCK" 2>/dev/null || true)"          # no lock yet: empty (plain cat would fail the job under set -e)
   [ -n "$BUSY" ] && [ "$BUSY" != "${SLURM_JOB_ID:-0}" ] && squeue -h -j "$BUSY" -t R 2>/dev/null | grep -q . || BUSY=""
 else
   BUSY="$(squeue -h -u "$USER" -t R -o '%i %j' 2>/dev/null | awk -v me="${SLURM_JOB_ID:-0}" '$1 != me && $2 ~ /^b2dr-(main|retarget)/ {print $1}' | head -1)"
