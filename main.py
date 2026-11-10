@@ -60,11 +60,15 @@ parser.add_argument("--collect", action="store_true", help="Enable dataset colle
 parser.add_argument("--teleop", action="store_true", help="Enable teleoperation.")
 parser.add_argument(
     "--teleop-device",
-    choices=["manus", "quest"],
+    choices=["manus", "quest", "manus-quest"],
     default="manus",
-    help="Teleop input: 'manus' (Manus SHM + iPhone ARKit) or 'quest' (Meta Quest 3 hand tracking over "
-    "CloudXR/OpenXR; implies --xr). See tools/teleop_xr/README.md.",
+    help="Teleop input: 'manus' (Manus SHM + iPhone ARKit), 'quest' (Meta Quest 3 hand tracking over "
+    "CloudXR/OpenXR; implies --xr) or 'manus-quest' (Manus gloves + glove-mounted Quest controllers through "
+    "the cross_dex package; implies --xr). See tools/teleop_xr/README.md.",
 )
+parser.add_argument("--robot-key", type=str, default=None,
+                    help="Robot (arm + hand) to spawn, a key of robots.ROBOT_SPAWNERS (default: robots.DEFAULT_ROBOT_KEY, "
+                    "UR5 + Wuji). Teleop auto-detects the hand type from it.")
 parser.add_argument("--xr-anchor-pos", type=float, nargs=3, default=[0.0, -0.55, 0.0],
                     help="Sim world point shown at the headset's floor origin (quest).")
 parser.add_argument("--xr-anchor-rot", type=float, nargs=4, default=[1.0, 0.0, 0.0, 0.0],
@@ -102,8 +106,8 @@ AppLauncher.add_app_launcher_args(parser)
 add_logging_arguments(parser)
 args_cli = parser.parse_args()
 configure_logging(args_cli.log_level)
-if args_cli.teleop and args_cli.teleop_device == "quest" and args_cli.xr_replay is None:
-    # Quest hand tracking arrives through the Kit OpenXR session (CloudXR runtime).
+if args_cli.teleop and args_cli.teleop_device in ("quest", "manus-quest") and args_cli.xr_replay is None:
+    # Quest hand tracking / controllers arrive through the Kit OpenXR session (CloudXR runtime).
     args_cli.xr = True
     if getattr(args_cli, "enable_cameras", False) or is_env_flag_enabled("ENABLE_CAMERAS"):
         parser.error(
@@ -148,7 +152,7 @@ from utils.episode_runtime import (  # noqa: E402
     teardown_episode_keyboard_controls,
     ramp_homing_targets,
 )
-from robots import DEFAULT_ROBOT_KEY  # noqa: E402
+from robots import DEFAULT_ROBOT_KEY, ROBOT_SPAWNERS  # noqa: E402
 from utils.seed_policy import (  # noqa: E402
     COLLECT_BASE_SEED_DEFAULT,
     CollectionSeedAllocator,
@@ -169,6 +173,15 @@ def _start_quest_teleop(hand_type: str, robot_art):
     """Quest 3 / OpenXR teleop bridge (headset, or a recorded dump with --xr-replay)."""
     from teleop.xr_hand_source import NpzHandSource, XrHandSource
     from teleop.xr_teleop import XrIsaacLabBridge, XrTeleopController
+
+    if args_cli.teleop_device == "manus-quest" and args_cli.xr_replay is None:
+        # Manus gloves (fingers) + glove-mounted Quest controllers (wrist): cross_dex (pip install -e /workspace/cross_dex)
+        from cross_dex.bench2dex.adapters.manus_quest_teleop import start_manus_quest_teleop
+
+        bridge = start_manus_quest_teleop(args_cli, hand_type, robot_art)
+        if bridge is not None:
+            _request_ar_session()
+        return bridge
 
     if args_cli.xr_replay is not None:
         source = NpzHandSource(args_cli.xr_replay, stream_log_every=args_cli.xr_stream_log)
@@ -542,7 +555,9 @@ def main() -> None:
         task_dir = os.path.dirname(task_path)
 
         task = load_yaml(task_path)
-        robot_key = DEFAULT_ROBOT_KEY
+        robot_key = args_cli.robot_key or DEFAULT_ROBOT_KEY
+        if robot_key not in ROBOT_SPAWNERS:
+            raise SystemExit(f"--robot-key {robot_key!r} is not a robot: {sorted(ROBOT_SPAWNERS)}")
         default_collect_cfg = os.path.join(SCRIPT_DIR, "configs", "collect", "default.yaml")
         collect_cfg_path = args_cli.collect_config or default_collect_cfg
         fixed_background_sample = _build_fixed_background_sample(
@@ -750,15 +765,15 @@ def main() -> None:
         if args_cli.teleop:
             from teleop import TeleopController, TeleopIsaacLabBridge
 
-            hand_type = _resolve_hand_type(DEFAULT_ROBOT_KEY)
+            hand_type = _resolve_hand_type(robot_key)
             if hand_type is None:
-                print(f"[WARN] Could not auto-detect hand type from '{DEFAULT_ROBOT_KEY}'. "
+                print(f"[WARN] Could not auto-detect hand type from '{robot_key}'. "
                       f"Teleop disabled.")
             else:
                 robot_art = interactive_objects.get("global_robot")
                 if robot_art is None:
                     print("[WARN] No global_robot found. Teleop disabled.")
-                elif args_cli.teleop_device == "quest":
+                elif args_cli.teleop_device in ("quest", "manus-quest"):
                     teleop_bridge = _start_quest_teleop(hand_type, robot_art)
                 else:
                     ctrl = TeleopController(
@@ -789,7 +804,7 @@ def main() -> None:
         _homing_start_wall_time: float | None = None  # homing 开始的系统时间（超时检测用）
         _HOMING_TIMEOUT_S = 10.0  # homing 超时秒数，超时后瞬移到 home
         keyboard_episode_mode = bool(args_cli.collect) and not _env_truthy("DEX2BENCH_AUTO_RECORD")
-        quest_controls = teleop_bridge is not None and args_cli.teleop_device == "quest"
+        quest_controls = teleop_bridge is not None and args_cli.teleop_device in ("quest", "manus-quest")
         if keyboard_episode_mode:
             if quest_controls:
                 keyboard_controls = _setup_quest_episode_controls(teleop_bridge)
