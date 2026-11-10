@@ -219,10 +219,11 @@ def teardown_episode_keyboard_controls(keyboard_controls) -> None:
     if keyboard_controls is None:
         return
     input_iface, keyboard, subscription = keyboard_controls[:3]
-    try:
-        input_iface.unsubscribe_to_keyboard_events(keyboard, subscription)
-    except Exception as exc:
-        print(f"[WARN] Failed to unsubscribe keyboard episode controls: {exc}")
+    if input_iface is not None:  # None: headless Quest run, headset buttons only
+        try:
+            input_iface.unsubscribe_to_keyboard_events(keyboard, subscription)
+        except Exception as exc:
+            print(f"[WARN] Failed to unsubscribe keyboard episode controls: {exc}")
     if len(keyboard_controls) >= 5:
         global_listener = keyboard_controls[4]
         if global_listener is not None:

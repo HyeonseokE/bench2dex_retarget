@@ -59,6 +59,28 @@ parser.add_argument(
 parser.add_argument("--collect", action="store_true", help="Enable dataset collection.")
 parser.add_argument("--teleop", action="store_true", help="Enable teleoperation.")
 parser.add_argument(
+    "--teleop-device",
+    choices=["manus", "quest"],
+    default="manus",
+    help="Teleop input: 'manus' (Manus SHM + iPhone ARKit) or 'quest' (Meta Quest 3 hand tracking over "
+    "CloudXR/OpenXR; implies --xr). See tools/teleop_xr/README.md.",
+)
+parser.add_argument("--xr-anchor-pos", type=float, nargs=3, default=[0.0, -0.55, 0.0],
+                    help="Sim world point shown at the headset's floor origin (quest).")
+parser.add_argument("--xr-anchor-rot", type=float, nargs=4, default=[1.0, 0.0, 0.0, 0.0],
+                    help="XR anchor rotation (w x y z). Identity = operator faces sim +Y (quest).")
+parser.add_argument("--xr-pos-scale", type=float, default=1.0,
+                    help="Human wrist displacement -> robot palm displacement (quest).")
+parser.add_argument("--xr-wrist-smoothing", type=float, default=0.5,
+                    help="Wrist pose low-pass in [0, 1): 0 = raw, higher = smoother but laggier (quest).")
+parser.add_argument("--xr-stream-log", type=int, default=0,
+                    help="Print a hand-tracking summary every N teleop polls (quest, 0 = off).")
+parser.add_argument("--xr-replay", type=str, default=None,
+                    help="Replay a B2D_XR_DUMP .npz instead of the headset (quest, no XR session).")
+parser.add_argument("--xr-auto-stop-success-steps", type=int, default=0,
+                    help="Queue STOP (save) once the task success holds this many sim steps while recording "
+                    "(quest, 0 = off).")
+parser.add_argument(
     "--collect-config",
     type=str,
     default=None,
@@ -80,6 +102,14 @@ AppLauncher.add_app_launcher_args(parser)
 add_logging_arguments(parser)
 args_cli = parser.parse_args()
 configure_logging(args_cli.log_level)
+if args_cli.teleop and args_cli.teleop_device == "quest" and args_cli.xr_replay is None:
+    # Quest hand tracking arrives through the Kit OpenXR session (CloudXR runtime).
+    args_cli.xr = True
+    if getattr(args_cli, "enable_cameras", False) or is_env_flag_enabled("ENABLE_CAMERAS"):
+        parser.error(
+            "--teleop-device quest cannot render collector cameras inside the XR session (it freezes on the "
+            "first frame). Record state-only (no --enable_cameras) and add RGB afterwards with replay.py --enable-rgb."
+        )
 enable_cameras_requested = bool(getattr(args_cli, "enable_cameras", False) or is_env_flag_enabled("ENABLE_CAMERAS"))
 configure_headless_camera_parity_experience(args_cli, enable_cameras=enable_cameras_requested, log_prefix="main")
 
@@ -133,6 +163,63 @@ from utils.runtime_helpers import (  # noqa: E402
     update_sim_objects,
     write_articulation_targets,
 )
+
+
+def _start_quest_teleop(hand_type: str, robot_art):
+    """Quest 3 / OpenXR teleop bridge (headset, or a recorded dump with --xr-replay)."""
+    from teleop.xr_hand_source import NpzHandSource, XrHandSource
+    from teleop.xr_teleop import XrIsaacLabBridge, XrTeleopController
+
+    if args_cli.xr_replay is not None:
+        source = NpzHandSource(args_cli.xr_replay, stream_log_every=args_cli.xr_stream_log)
+    else:
+        source = XrHandSource(
+            anchor_pos=args_cli.xr_anchor_pos,
+            anchor_rot=args_cli.xr_anchor_rot,
+            stream_log_every=args_cli.xr_stream_log,
+        )
+    ctrl = XrTeleopController(source, hand_type, enable_right=True, enable_left=True,
+                              wrist_smoothing=args_cli.xr_wrist_smoothing)
+    bridge = XrIsaacLabBridge(ctrl, robot_art, pos_scale=args_cli.xr_pos_scale, log_every=args_cli.xr_stream_log)
+    if not bridge.start():
+        print("[WARN] Quest teleop failed to start. Running without teleop.")
+        bridge.stop()
+        return None
+    if args_cli.xr_replay is None:
+        _request_ar_session()
+    print(f"[INFO] Teleop active (quest): {bridge}")
+    return bridge
+
+
+def _request_ar_session(num_updates: int = 10) -> None:
+    """Start the AR session so streaming begins when the headset connects (headless XR kit does it too)."""
+    try:
+        from omni.kit.xr.core import XRCore
+
+        XRCore.get_singleton().request_enable_profile("ar")
+    except Exception as exc:  # noqa: BLE001 - XR extension missing
+        print(f"[WARN] Could not enable the AR profile programmatically: {exc}")
+        return
+    for _ in range(num_updates):
+        simulation_app.update()
+    print("[INFO] AR profile enabled; waiting for the Quest (IsaacTeleop client) to connect.")
+
+
+def _setup_quest_episode_controls(teleop_bridge):
+    """Headset START / STOP / RESET → the keyboard episode commands (START record, STOP save, HOME discard).
+
+    Keyboard keys keep working when an app window exists (GUI runs).
+    """
+    from collections import deque
+
+    controls = setup_episode_keyboard_controls()
+    if controls is None:
+        controls = (None, None, None, deque(), None)
+    pending_commands = controls[3]
+    source = teleop_bridge._teleop.source
+    for key, command in (("START", EpisodeCommand.START), ("STOP", EpisodeCommand.STOP), ("RESET", EpisodeCommand.HOME)):
+        source.add_command_callback(key, lambda c=command, k=key: (pending_commands.append(c), print(f"[INFO] Headset {k} -> {c.name}")))
+    return controls
 
 
 def _resolve_hand_type(robot_key: str) -> str | None:
@@ -671,6 +758,8 @@ def main() -> None:
                 robot_art = interactive_objects.get("global_robot")
                 if robot_art is None:
                     print("[WARN] No global_robot found. Teleop disabled.")
+                elif args_cli.teleop_device == "quest":
+                    teleop_bridge = _start_quest_teleop(hand_type, robot_art)
                 else:
                     ctrl = TeleopController(
                         hand_type=hand_type,
@@ -692,6 +781,7 @@ def main() -> None:
 
         episode_session = None
         _suppress_teleop = False
+        _xr_success_streak = 0
         _home_check_threshold_rad = 0.08
         # 回 home 时每帧最大关节变化速率 (rad/s)，设为约 1.0 使其以缓速回 home
         _HOME_RAMP_RATE = 1.5  # rad/s (比 velocity_limit_sim 稍慢，避免突然全速冲)
@@ -699,8 +789,14 @@ def main() -> None:
         _homing_start_wall_time: float | None = None  # homing 开始的系统时间（超时检测用）
         _HOMING_TIMEOUT_S = 10.0  # homing 超时秒数，超时后瞬移到 home
         keyboard_episode_mode = bool(args_cli.collect) and not _env_truthy("DEX2BENCH_AUTO_RECORD")
+        quest_controls = teleop_bridge is not None and args_cli.teleop_device == "quest"
         if keyboard_episode_mode:
-            keyboard_controls = setup_episode_keyboard_controls()
+            if quest_controls:
+                keyboard_controls = _setup_quest_episode_controls(teleop_bridge)
+                print("[INFO] Quest episode controls: headset START = record (robot homes first), "
+                      "STOP = save (homes first), RESET = discard and home.")
+            else:
+                keyboard_controls = setup_episode_keyboard_controls()
             if keyboard_controls is None:
                 print("[WARN] Falling back to immediate recording because keyboard controls are unavailable.")
                 keyboard_episode_mode = False
@@ -1022,6 +1118,15 @@ def main() -> None:
                 collector.after_step(sim_step=sim_step, dt=physics_dt)
                 _t_after_step_ms = (_time.monotonic() - _t_after) * 1000
 
+            if args_cli.xr_auto_stop_success_steps > 0 and quest_controls and episode_session is not None:
+                _tracker = getattr(collector, "_success_tracker", None)
+                _recording = episode_session.state is EpisodeSessionState.RECORDING
+                _xr_success_streak = (_xr_success_streak + 1) if (_recording and _tracker is not None and _tracker.success) else 0
+                if _xr_success_streak >= args_cli.xr_auto_stop_success_steps:
+                    print(f"[INFO] Task success held {_xr_success_streak} steps -> STOP (save).")
+                    keyboard_controls[3].append(EpisodeCommand.STOP)
+                    _xr_success_streak = 0
+
             # ── 外部时间对齐: 如果本步耗时 < physics_dt, sleep 补齐 ──
             _elapsed_s = _time.monotonic() - _step_wall_t0
             _remaining_s = _target_step_s - _elapsed_s
@@ -1141,6 +1246,12 @@ def main() -> None:
                     articulation_hold_targets,
                     teleport=True,
                 )
+                # Same as the keyboard path: point teleop at the respawned robot.
+                if teleop_bridge is not None:
+                    new_robot_art = interactive_objects.get("global_robot")
+                    reset_fn = getattr(teleop_bridge, "reset_articulation", None)
+                    if new_robot_art is not None and callable(reset_fn):
+                        reset_fn(new_robot_art)
                 auto_record_episode_index += 1
                 _warmup_scene_before_camera_recording(
                     collector=collector,

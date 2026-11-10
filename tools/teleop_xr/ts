@@ -1,0 +1,4 @@
+#!/bin/bash
+# tailscale CLI bound to the container's userspace tailscaled (see setup_tailscale.sh).
+TS_DIR=${TS_DIR:-/workspace/envs/tailscale}
+exec "${TS_DIR}/tailscale" --socket="${TS_DIR}/tailscaled.sock" "$@"

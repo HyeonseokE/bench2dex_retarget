@@ -137,6 +137,7 @@ class RetargetBridge:
         hand_side: str = "right",
         yaml_path: Optional[str] = None,
         urdf_dir: Optional[str] = None,
+        input_device: str = "manus",
     ):
         """
         Args:
@@ -145,8 +146,12 @@ class RetargetBridge:
             yaml_path: Override path to retarget YAML config. If None, auto-detected.
             urdf_dir: Override path to the robot URDF root directory.
                       If None, uses URDF-Zoo.
+            input_device: "manus" or "xr". With "xr", the optional YAML keys
+                      xr_hand_scale_xyz / xr_hand_offset_xyz replace hand_scale_xyz /
+                      hand_offset_xyz (the latter were tuned on the Manus skeleton).
         """
         self._hand_type = hand_type
+        self._input_device = input_device
         self._side = hand_side.lower()
         assert self._side in ("left", "right"), f"Invalid side: {hand_side}"
 
@@ -194,6 +199,11 @@ class RetargetBridge:
         mano_corr_vis = retarget_sec.pop("mano_correction_vis", True)
         hand_offset = retarget_sec.pop("hand_offset_xyz", None)
         hand_scale = retarget_sec.pop("hand_scale_xyz", None)
+        xr_hand_offset = retarget_sec.pop("xr_hand_offset_xyz", None)
+        xr_hand_scale = retarget_sec.pop("xr_hand_scale_xyz", None)
+        if input_device == "xr":
+            hand_offset = xr_hand_offset if xr_hand_offset is not None else hand_offset
+            hand_scale = xr_hand_scale if xr_hand_scale is not None else hand_scale
         quat_corr_rpy = retarget_sec.pop("wrist_quat_correction_rpy", None)
 
         urdf_path_value = retarget_sec.get("urdf_path")
@@ -434,6 +444,9 @@ class RetargetBridge:
         # hand offset / scale
         ho = merged.get("hand_offset_xyz")
         hs = merged.get("hand_scale_xyz")
+        if self._input_device == "xr":
+            ho = merged.get("xr_hand_offset_xyz", ho)
+            hs = merged.get("xr_hand_scale_xyz", hs)
         self._hand_offset = np.array(ho, dtype=np.float32) if ho is not None else None
         self._hand_scale = np.array(hs, dtype=np.float32) if hs is not None else None
 
@@ -555,16 +568,32 @@ class RetargetBridge:
         if keypoints is None:
             return None
 
+        # Wrist rotation frame (from Manus node 0 quaternion)
+        if wrist_quat is None:
+            return None
+        return self.retarget_keypoints(keypoints, _wrist_frame_from_quat(wrist_quat))
+
+    def retarget_keypoints(self, keypoints: np.ndarray, wrist_frame: np.ndarray) -> Optional[np.ndarray]:
+        """
+        Device-agnostic pipeline: MediaPipe 21 keypoints + canonical wrist frame → target hand qpos.
+
+        Args:
+            keypoints: (21, 3) MediaPipe-order keypoints (any common frame, e.g. world).
+            wrist_frame: (3, 3) canonical wrist frame expressed in the same frame as the
+                keypoints, columns = (finger direction, back-of-hand normal, x × y).
+                This is the frame _wrist_frame_from_quat builds from the Manus wrist node.
+
+        Returns:
+            (n_dof,) np.float32 joint angles (radians), or None if retargeting is unavailable
+        """
         if self._retargeting is None:
             return None
 
         # 1) Center on wrist
         keypoints = keypoints - keypoints[0:1, :]
 
-        # 2) Wrist rotation frame (from Manus node 0 quaternion)
-        if wrist_quat is None:
-            return None
-        wrist_frame = _wrist_frame_from_quat(wrist_quat)
+        # 2) Express in the canonical wrist frame
+        wrist_frame = np.asarray(wrist_frame, dtype=np.float32)
         if self._quat_correction_R is not None:
             wrist_frame = wrist_frame @ self._quat_correction_R
         joint_pos = (keypoints @ wrist_frame @ self._operator2mano).astype(np.float32)
