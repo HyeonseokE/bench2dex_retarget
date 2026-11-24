@@ -14,7 +14,7 @@
 #     via NV_CXR_ENDPOINT_IP. Override with CXR_ENDPOINT_IP=<ip>.
 set -eo pipefail
 
-ENV_PREFIX=${ISAACTELEOP_ENV:-/workspace/envs/isaacteleop}
+ENV_PREFIX=${ISAACTELEOP_ENV:-/workspace/envs/bench2dex/isaacteleop}
 CXR_HOME=${CXR_HOME:-/workspace/.cloudxr}
 ENV_CONFIG=${CXR_ENV_CONFIG:-${CXR_HOME}/cxr_optical.env}
 WSS_PORT=48322

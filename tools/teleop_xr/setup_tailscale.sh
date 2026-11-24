@@ -14,7 +14,7 @@
 set -eo pipefail
 
 TS_VERSION=${TS_VERSION:-1.80.3}
-TS_DIR=${TS_DIR:-/workspace/envs/tailscale}
+TS_DIR=${TS_DIR:-/workspace/envs/tools/tailscale}
 TS_HOSTNAME=${TS_HOSTNAME:-b2d-teleop}
 SOCK="${TS_DIR}/tailscaled.sock"
 

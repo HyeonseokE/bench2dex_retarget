@@ -39,7 +39,7 @@ has_arg --teleop-device || ARGS+=(--teleop-device quest)
 has_arg --xr-stream-log || ARGS+=(--xr-stream-log 100)
 if [[ ${headless} == 1 ]] && ! has_arg --headless; then ARGS+=(--headless); fi
 
-source /workspace/bench2dex_env.sh
+source /workspace/codes/_setup/bench2dex_env.sh
 set -a
 source "${CXR_ENV}"
 set +a

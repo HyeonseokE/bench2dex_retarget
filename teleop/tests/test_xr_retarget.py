@@ -10,7 +10,7 @@ fingertips, +Y out of the back of the hand) and checks, for every hand type:
   3. the fingertips do not depend on where/how the whole hand is held in the world.
 
 Usage:
-    source /workspace/bench2dex_env.sh
+    source /workspace/codes/_setup/bench2dex_env.sh
     python teleop/tests/test_xr_retarget.py [--hands wuji shadow ...]
 """
 

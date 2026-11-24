@@ -36,7 +36,7 @@ anchor(= clutch)가 다시 잡히는 때:
 cd /workspace/bench2dex_teleop          # 브랜치 teleop/quest-cloudxr6 의 worktree
 bash tools/teleop_xr/setup_tailscale.sh # tailscale 설치 + tailscaled(userspace) + `tailscale up`
                                         # → 출력된 로그인 URL을 열어 이 노드(b2d-teleop)를 tailnet에 승인
-bash tools/teleop_xr/setup_isaacteleop_env.sh   # /workspace/envs/isaacteleop + isaacteleop[cloudxr]==1.0.193
+bash tools/teleop_xr/setup_isaacteleop_env.sh   # /workspace/envs/bench2dex/isaacteleop + isaacteleop[cloudxr]==1.0.193
 ```
 
 - 이 컨테이너는 `/dev/net/tun`이 없고 docker bridge 네트워크(172.17.x)라서 tailscaled를 userspace 모드로 띄운다.
@@ -87,7 +87,7 @@ XR 세션 안에서 collector 카메라를 렌더링하면 첫 프레임에서 �
 영상은 녹화 후 kinematic state replay로 넣는다(같은 서버에서):
 
 ```bash
-source /workspace/bench2dex_env.sh
+source /workspace/codes/_setup/bench2dex_env.sh
 python replay.py --hdf5 <episode.hdf5> --enable-rgb --headless
 ```
 
@@ -110,7 +110,7 @@ Manus용 `hand_scale_xyz`/`hand_offset_xyz`는 그대로 둔다). 값은 성인 
 ## 헤드셋 없이 테스트
 
 ```bash
-source /workspace/bench2dex_env.sh
+source /workspace/codes/_setup/bench2dex_env.sh
 # 1) 손가락 경로 (손 5종 × 양손: 손끝 벡터 오차, 주먹 시 손가락 닫힘, 손 전체 자세 불변성)
 python teleop/tests/test_xr_retarget.py
 # 2) 실제 Quest 손 데이터 녹화: 텔레옵 중 B2D_XR_DUMP=/path/hands.npz 를 주면 매 폴링 raw joint 저장

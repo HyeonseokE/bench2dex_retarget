@@ -8,7 +8,7 @@
 # and ~/.cloudxr (runtime state, EULA flag, logs, cloudxr.env) is a symlink to /workspace/.cloudxr.
 set -eo pipefail
 
-ENV_PREFIX=${ISAACTELEOP_ENV:-/workspace/envs/isaacteleop}
+ENV_PREFIX=${ISAACTELEOP_ENV:-/workspace/envs/bench2dex/isaacteleop}
 ISAACTELEOP_VERSION=${ISAACTELEOP_VERSION:-1.0.193}
 CXR_HOME=${CXR_HOME:-/workspace/.cloudxr}
 
