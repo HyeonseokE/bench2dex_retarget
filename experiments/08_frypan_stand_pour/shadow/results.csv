@@ -1,0 +1,2 @@
+task,episode,target,state,attempts,success
+08_frypan_stand_pour,ep000,shadow,failed_all_attempts,1,False

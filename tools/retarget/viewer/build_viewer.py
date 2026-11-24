@@ -35,6 +35,52 @@ STRIDE = 2              # reference animation keeps every 2nd frame (20 fps data
 FACE_BUDGET = 800       # per link mesh after decimation
 
 
+
+# ------------------------------------------------------------------ articulated bodies in rollouts
+def _qmul(a, b):
+    """Hamilton product, wxyz, broadcasting."""
+    aw, ax, ay, az = np.moveaxis(a, -1, 0)
+    bw, bx, by, bz = np.moveaxis(b, -1, 0)
+    return np.stack([aw * bw - ax * bx - ay * by - az * bz, aw * bx + ax * bw + ay * bz - az * by,
+                     aw * by - ax * bz + ay * bw + az * bx, aw * bz + ax * by - ay * bx + az * bw], -1)
+
+
+def _qrot(q, v):
+    qv = np.concatenate([np.zeros(v.shape[:-1] + (1,)), v], -1)
+    qc = q * np.array([1, -1, -1, -1])
+    return _qmul(_qmul(q, qv), qc)[..., 1:]
+
+
+def rollout_body_poses(ref, meta, ro, objects):
+    """(T, n_bodies, 7) wxyz world poses of every drawn body in a rollout.
+
+    Rollouts store only object roots (+ joint positions for articulations). A rigid object's single body is its
+    root; an articulated object's links are placed as root(t) * rel, where rel = root^-1 * link is taken from the
+    reference frame whose joint positions are closest to the rollout's (the demo sweeps the same joints)."""
+    ro_ids = [str(x) for x in ro["obj_ids"]]
+    ref_ids = list(meta["obj_ids"])
+    roots = ro["obj"]
+    out = np.zeros((len(roots), len(objects), 7), np.float64)
+    for j, o in enumerate(objects):
+        root = roots[:, ro_ids.index(o["obj"])].astype(np.float64)
+        if "/" not in o["id"]:
+            out[:, j] = root
+            continue
+        rroot = ref["obj_root"][:, ref_ids.index(o["obj"])].astype(np.float64)
+        rbody = ref["body_pose"][:, o["body"]].astype(np.float64)
+        inv = rroot[:, 3:7] * np.array([1, -1, -1, -1])
+        rel_q = _qmul(inv, rbody[:, 3:7])
+        rel_p = _qrot(inv, rbody[:, :3] - rroot[:, :3])
+        key = f"art/{o['obj']}"
+        if key in ro.files and key in ref.files:
+            qr, qo = ref[key].astype(np.float64), ro[key].astype(np.float64)
+            k = np.argmin(((qo[:, None, :] - qr[None, :, :]) ** 2).sum(-1), axis=1)
+        else:
+            k = np.zeros(len(root), int)
+        out[:, j, 3:7] = _qmul(root[:, 3:7], rel_q[k])
+        out[:, j, :3] = root[:, :3] + _qrot(root[:, 3:7], rel_p[k])
+    return out
+
 # ------------------------------------------------------------------ meshes
 def decimate(v, f, budget=FACE_BUDGET):
     """Vertex clustering on a growing grid until the mesh has <= budget faces."""
@@ -113,6 +159,8 @@ def run_fk(task, ep, robot, trajs, joint_names, cache, refresh):
     np.savez(qfile, joint_names=np.array(joint_names), **{f"traj/{k}": v for k, v in trajs.items()})
     cmd = [os.environ.get("PY", sys.executable), str(HERE / "viewer_fk.py"), "--task", task, "--episode", str(ep),
            "--robot", robot, "--q", str(qfile), "--out", str(cache), "--headless", "--chunk", "64"]
+    if os.environ.get("B2DR_FK_DEVICE"):          # e.g. "cpu" while SPIDER jobs fill the GPU
+        cmd += ["--device", os.environ["B2DR_FK_DEVICE"]]
     print(f"  FK {robot} ep{ep}: {', '.join(f'{k} {len(v)}' for k, v in trajs.items())}", flush=True)
     r = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
     if r.returncode != 0 or not cache.exists():
@@ -327,7 +375,7 @@ def main():
                 labels, tracks = condition_tracks(scene_yaml, obj_ids, ro["obj"], art, 20)
                 summary["conditions"] = summary["conditions"] or labels
                 n = len(ro["q"])
-                rollout_obj = ro["obj"][:, [obj_ids.index(o["obj"]) for o in objects]]
+                rollout_obj = rollout_body_poses(ref, meta, ro, objects)   # links of articulations placed too
                 arrays = {"tgt_pose": fk[f"pose/{tag}"][:, geom_idx[t]], "obj_pose": q_to_x(rollout_obj),
                           "err_cm": 100 * ro["err"], "success": ro["success"].astype(np.int8)}
                 if tracks is not None:

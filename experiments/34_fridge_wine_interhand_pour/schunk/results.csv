@@ -1,0 +1,2 @@
+task,episode,target,state,attempts,success
+34_fridge_wine_interhand_pour,ep000,schunk,failed_all_attempts,1,False

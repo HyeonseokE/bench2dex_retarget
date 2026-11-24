@@ -1,0 +1,2 @@
+task,episode,target,state,attempts,success
+43_fridge_fruit_shelf_sorting,ep000,schunk,failed_all_attempts,1,False

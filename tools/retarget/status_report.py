@@ -43,6 +43,8 @@ def collect(runs: Path):
             continue
         att = s.get("attempts", [])
         state = s.get("state", "?")
+        if state == "stopped":                     # run stopped by hand: no result, not in progress
+            continue
         rows.append({"task": d.parent.parent.name, "episode": d.parent.name, "target": d.name, "state": state,
                      "attempts": len(att), "success": state in DONE_OK,
                      "done": state in DONE_OK | DONE_BAD,

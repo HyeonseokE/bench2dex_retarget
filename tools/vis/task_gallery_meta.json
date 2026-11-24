@@ -1,0 +1,32 @@
+{
+  "_note": "Bench2Dex 27 scene 분석 메타 (Dex Team 노션 '[Bench2Dex] 벤치마크 task 유형', '[Bench2Dex&Dexverse] task categorize', 2026-10-29 RLWRLD 표준 Skill 대조). retarget=★ UR5 데모 retargeting 대상 12개.",
+  "tasks": {
+    "03_wine_glass_plate_balance": {"kr": "물 담긴 와인잔 3개를 쏟지 않고 접시로 옮기기", "dex": "그리퍼 가능", "category": "쏟지 않고 운반", "tool": "", "skills": "03-B 유동체 운반 (부분: tilt 판정, 액체 없음)", "retarget": false},
+    "06_fruit_bowl_loading": {"kr": "그릇 옮기고 사과 2개·바나나 담기", "dex": "그리퍼 가능", "category": "집어서 놓기", "tool": "", "skills": "01/04 Atom (특정 Skill 없음)", "retarget": true},
+    "07_citrus_plate_loading": {"kr": "레몬·오렌지 접시에 올리기 (2쌍)", "dex": "그리퍼 가능", "category": "집어서 놓기", "tool": "", "skills": "01/04 Atom", "retarget": true},
+    "08_frypan_stand_pour": {"kr": "프라이팬 받침대에 올리기 → 간장·올리브유 붓기", "dex": "Dex 유리", "category": "Tool use (붓기)", "tool": "용기 붓기: 간장·올리브유 병", "skills": "13-A 유동체 계량 따르기 (부분: tilt 판정)", "retarget": true},
+    "09_cleaner_moisturizer_box_loading": {"kr": "양손으로 세정제 들어 상자에 세워 넣기 → 비누 넣기", "dex": "그리퍼 가능", "category": "양손 들기 + 집어서 놓기", "tool": "", "skills": "01-H 대형 물체 집기 (약함: 세정제 양손 들기)", "retarget": false},
+    "12_screwdriver_box_and_hammer": {"kr": "드라이버 2개 상자에 넣기 → 상자 옮기기 → 망치로 블록 치기", "dex": "Dex 유리", "category": "Tool use", "tool": "사용: 망치 / 옮기기만: 드라이버 2개", "skills": "04·03 Atom만; 망치 치기 Skill 없음", "retarget": true},
+    "21_condiment_box_loading": {"kr": "조미료통·간장·식초 상자에 넣고 상자 옮기기", "dex": "그리퍼 가능", "category": "집어서 놓기", "tool": "", "skills": "01/04 Atom", "retarget": true},
+    "22_tool_box_loading": {"kr": "드릴·드라이버·렌치 상자에 넣기", "dex": "그리퍼 가능", "category": "집어서 놓기", "tool": "옮기기만: 드릴·일자/십자 드라이버·렌치", "skills": "01/04 Atom", "retarget": false},
+    "24_stationery_category_sorting": {"kr": "마커·건전지·펜·풀을 펜꽂이와 상자로 분류", "dex": "그리퍼 가능", "category": "집어서 놓기 (작고 얇은 물체)", "tool": "", "skills": "06-A 지정 순서 정렬, 01-A 얇은 물체(약함)", "retarget": false},
+    "26_canned_food_tray_line_arrangement": {"kr": "캔·조미료·우유팩을 쟁반에 줄 맞춰 놓기", "dex": "그리퍼 가능", "category": "정밀 배치", "tool": "", "skills": "06-C 간격 정렬", "retarget": false},
+    "27_ball_box_loading": {"kr": "공 4종 상자에 넣기", "dex": "그리퍼 가능", "category": "집어서 놓기 (큰 개구폭)", "tool": "", "skills": "01/04 Atom", "retarget": true},
+    "32_baking_tray_prep_with_tools": {"kr": "붓·주걱·박스 2개를 쟁반에 놓기", "dex": "그리퍼 가능", "category": "집어서 놓기", "tool": "옮기기만: 붓·주걱", "skills": "01/04 Atom", "retarget": false},
+    "34_fridge_wine_interhand_pour": {"kr": "냉장고 열기 → 와인 꺼내 공중 전달 → 따르기 → 되돌려 넣고 닫기", "dex": "Dex 유리", "category": "Tool use (붓기) · 관절 물체 · 양손 전달", "tool": "용기 붓기: 와인병", "skills": "10-H 힌지 패널 열기, 01-D 제한된 공간 집기, 13-A(부분); 공중 전달 Skill 없음", "retarget": true},
+    "42_trash_disposal": {"kr": "뚜껑 열기 → 종이·병·바나나 껍질 버리기 → 닫기", "dex": "그리퍼 가능", "category": "관절 물체 + 집어서 놓기", "tool": "", "skills": "10-H 힌지 패널 열기", "retarget": true},
+    "43_fridge_fruit_shelf_sorting": {"kr": "냉장고 문 열기 → 사과·바나나 선반에 넣기 → 닫기", "dex": "그리퍼 가능", "category": "관절 물체 + 집어서 놓기", "tool": "", "skills": "10-H 힌지 패널 열기, 06-A 지정 순서 정렬", "retarget": true},
+    "44_microwave_bowl_loading": {"kr": "전자레인지 문 열기 → 바게트 담은 그릇 넣기 → 닫기", "dex": "그리퍼 가능", "category": "관절 물체 + 집어서 놓기", "tool": "", "skills": "10-H 힌지 패널 열기", "retarget": true},
+    "51_toilet_lid_cleaner_pour": {"kr": "변기 뚜껑 열기 → 세정제 붓기 → 닫기", "dex": "Dex 유리", "category": "Tool use (붓기) · 관절 물체", "tool": "용기 붓기: 세정제 병", "skills": "10-H 힌지 패널 열기/닫기, 13-A(부분)", "retarget": false},
+    "60_breadbasket_fast_food_loading": {"kr": "빵·햄버거·감자튀김 바구니에 담고 옮기기", "dex": "그리퍼 가능", "category": "집어서 놓기", "tool": "", "skills": "01/04 Atom", "retarget": true},
+    "61_medicine_shoebox_pack": {"kr": "신발 상자 옮기고 약병·치약·오일 넣기", "dex": "그리퍼 가능", "category": "집어서 놓기", "tool": "", "skills": "01/04 Atom", "retarget": false},
+    "62_shoebox_accessory_pack": {"kr": "도장·신발·목줄을 신발 상자에 넣기", "dex": "그리퍼 가능", "category": "집어서 놓기 (변형 물체: 목줄)", "tool": "", "skills": "01-E 유연 물체 집기(목줄, 약함)", "retarget": false},
+    "64_sports_ball_cup_sort": {"kr": "공 4종을 큰 컵·작은 컵에 분류", "dex": "그리퍼 가능", "category": "집어서 놓기", "tool": "", "skills": "06-A 지정 순서 정렬", "retarget": false},
+    "67_faucet_cup_water_fill": {"kr": "숟가락 머그에 넣기 → 머그 수도 아래 → 수도 열고 닫기 → 머그 쟁반에", "dex": "그리퍼 가능", "category": "관절 물체 + 집어서 놓기", "tool": "옮기기만: 숟가락", "skills": "10-E 레버(수도)", "retarget": false},
+    "73_jigsaw_puzzle_assembly": {"kr": "퍼즐 조각 4개를 가운데 조각에 맞춰 조립", "dex": "그리퍼 가능", "category": "정밀 배치·조립", "tool": "", "skills": "07-D 비대칭 삽입", "retarget": false},
+    "76_soup_serving": {"kr": "그릇 들고 국자로 국 두 번 떠 담기 → 그릇 옮기기", "dex": "Dex 유리", "category": "Tool use", "tool": "사용: 국자", "skills": "01-J 유동체 집기(도구), 13-A(부분: 국자 위치 판정), 16-A 유사", "retarget": true},
+    "79_bimanual_piano_melody": {"kr": "양손으로 건반 C-C-G-G-A-A-G 연주", "dex": "Dex 필수", "category": "Finger individuation", "tool": "", "skills": "10-A 버튼 조작 (부분: 손가락 분리·연속 누르기 없음)", "retarget": false},
+    "80_gaming_desk_setup": {"kr": "모니터 바로 세우기 → 검지로 ESC → 마우스 옮기고 검지로 클릭", "dex": "Dex 필수", "category": "Finger individuation", "tool": "", "skills": "10-A 버튼(ESC·클릭); 모니터 세우기 Atom 02만", "retarget": false},
+    "86_short_jigsaw_puzzle": {"kr": "(fork 추가) 73번 축약판: 퍼즐 조각 2개 조립", "dex": "그리퍼 가능", "category": "정밀 배치·조립", "tool": "", "skills": "07-D 비대칭 삽입", "retarget": false}
+  }
+}
